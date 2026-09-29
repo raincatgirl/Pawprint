@@ -197,6 +197,32 @@ def test_plain_text_still_strips_doubled_underscore_emphasis():
     assert "_" not in out
 
 
+def test_plain_text_strips_both_ticks_when_line_has_two_code_spans():
+    # The backtick strip was `^`{1,3}|`{1,3}$`, anchored to the start and the
+    # end of the *line*. A line with two inline spans in the middle lost
+    # neither: the first closing tick and the second opening tick survived,
+    # so `a` and `b` came out as "a` and `b".
+    out = plain_text("Use `a` and `b` together.")
+    assert out == "Use a and b together."
+
+
+def test_plain_text_strips_bare_tick_around_whole_line():
+    out = plain_text("`a` and `b`")
+    assert out == "a and b"
+
+
+def test_plain_text_strips_ticks_in_lines_that_also_have_identifiers():
+    # The word-boundary guard added for snake_case must not shield an
+    # ordinary code span from losing its ticks.
+    out = plain_text("Set `max_tokens` before calling `load_user_profile()`.")
+    assert out == "Set max_tokens before calling load_user_profile()."
+
+
+def test_plain_text_still_strips_three_tick_fence():
+    out = plain_text("```py\nvalue = 1\n```")
+    assert out == "py\nvalue = 1"
+
+
 def test_summarise_prefers_description():
     page = parse_page("/x/a.md", "a.md", "---\ndescription: Explicit.\n---\nBody text here.\n")
     assert summarise(page) == "Explicit."

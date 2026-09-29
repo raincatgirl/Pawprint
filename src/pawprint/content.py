@@ -263,11 +263,38 @@ def _strip_emphasis(line: str) -> str:
     return _PARK_RE.sub(r"__\1__", _EMPHASIS_RE.sub(r"\2", parked))
 
 
+_FENCE_RE = re.compile(r"^(`{3,})[ \t]*(.*)$")
+
+# A single- or double-backtick inline code span. Three or more backticks are a
+# fence, not a span, so the run lengths must match and must not run together
+# with another backtick (``code ` here`` is not a span).
+_CODE_SPAN_RE = re.compile(r"(?<!`)(`{1,2})(?!`)(.+?)(?<!`)\1(?!`)")
+
+
+def _strip_ticks(line: str) -> str:
+    """Remove code fences and inline code spans from one line.
+
+    The old version used ``^`{1,3}|`{1,3}$``, which is anchored to the start
+    and the end of the *line*. That only ever worked for a line that was
+    nothing but one span: ``Use `a` and `b` `` kept the first span's closing
+    tick and the second span's opening tick, and came out as
+    ``Use a` and `b ``. The plain text an AI reads had a stray backtick glued
+    to words, and any word-counting downstream of it counted garbage.
+    """
+    stripped = line.strip()
+    if stripped.startswith("```"):
+        # A fence line: keep the info string (``py``), drop the fence itself.
+        match = _FENCE_RE.match(stripped)
+        if match:
+            return match.group(2).rstrip()
+    return _CODE_SPAN_RE.sub(r"\2", line)
+
+
 def plain_text(markdown: str) -> str:
     """Strip the markdown decorations an LLM does not need.
 
     Keeps link targets (they are often the only place a URL appears) but drops
-    emphasis markers, heading hashes, and image syntax.
+    emphasis markers, code ticks, heading hashes, and image syntax.
     """
     out: list[str] = []
     for line in markdown.split("\n"):
@@ -277,7 +304,7 @@ def plain_text(markdown: str) -> str:
         line = re.sub(r"^>\s?", "", line)
         line = _strip_emphasis(line)
         line = re.sub(r"^\s*[-*+]\s+", "- ", line)
-        line = re.sub(r"^`{1,3}|`{1,3}$", "", line.strip())
+        line = _strip_ticks(line)
         out.append(line.rstrip())
     return "\n".join(out).strip()
 

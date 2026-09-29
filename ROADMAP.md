@@ -50,6 +50,11 @@ readable to an AI engine, or more honest about who is reading it.**
 
 ## Tick log
 
+- **2026-10-12** — Bug fix, no new flags. `plain_text` stripped backticks with
+  a pattern anchored to the start and end of the *line*, so a sentence with two
+  inline code spans came out as ``a` and `b``. The audit's word count reads
+  that text, so sites were being undercounted on check 4. Found by reading
+  `plain_text`.
 - **2026-10-11** — Bug fix, no new flags. `plain_text` turned `__init__`
   into `init` and `__name__` into `name`, because the emphasis-stripper's
   word-boundary guard did not count `_` as an identifier character. Found by

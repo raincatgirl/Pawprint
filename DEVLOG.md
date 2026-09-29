@@ -1,5 +1,50 @@
 # Devlog
 
+## 2026-10-12 — `plain_text` left a backtick between two code spans
+
+### What changed
+
+The backtick stripper was a single regex: `re.sub(r"^`{1,3}|`{1,3}$", "", line.strip())`.
+
+Both alternatives are anchored — one to the start of the line, one to the end.
+That only ever worked for a line that was *nothing but* a code span. Any line
+with two inline spans in the middle lost neither of the middle ticks, because
+neither is at an anchor:
+
+```
+Use `a` and `b` together.
+-> Use a` and `b` together.
+
+Set `max_tokens` before calling `load_user_profile()`.
+-> Set `max_tokens` before calling `load_user_profile()`.
+```
+
+Fences still worked, because a fence really is at the start of its line. The
+bug only showed on ordinary prose, which is to say on most technical writing.
+
+Stripping is now a real span match. A run of one or two backticks delimits an
+inline span whose matching run is the same length, and neither run may touch a
+third backtick (so ``` ``code with ` tick`` ``` survives, as CommonMark says it
+should). Three or more backticks on a line is still treated as a fence and
+keeps its info string. The strip moved to the end of the pipeline, after the
+link rewrite, so a URL that was itself a code span comes out clean.
+
+### Why it matters
+
+Two reasons, and the second is the real one.
+
+The obvious one is cosmetic: `llms-full.txt` is read by an engine that will
+quote it back, and a stray backtick welded to a word is noise in the one file
+whose entire job is to be quoted.
+
+The real one is the audit. Check 4 counts words with
+`len(_WORD_RE.findall(plain_text(body)))` to decide whether a site is thick
+enough to be worth citing, and every unclosed tick glued two words into one
+token. A page written in the ordinary technical register — inline code around
+every command and identifier — was being undercounted. Content depth is one of
+the five checks, so this quietly moved a score the user reads as a verdict on
+their own site.
+
 ## 2026-10-11 — `plain_text` was eating Python dunder identifiers
 
 ### What changed
