@@ -201,6 +201,25 @@ class TestBuildCheck:
         assert main(["build", str(tmp_path), "--check", "--include-drafts"]) == 1
 
 
+class TestSiteNameInOutput:
+    """The llms.txt H1 must be the site's index page, not a stray sibling page.
+
+    On a site with a root-level changelog.md, the old code named the whole
+    site "Changelog" in both generated files.
+    """
+
+    def test_index_h1_is_the_site_name(self, tmp_path):
+        (tmp_path / "index.md").write_text(
+            "---\ntitle: Acme Docs\n---\n# Acme Docs\n\nHome.\n", encoding="utf-8"
+        )
+        (tmp_path / "changelog.md").write_text(
+            "---\ntitle: Changelog\n---\n# Changelog\n\nHistory.\n", encoding="utf-8"
+        )
+        main(["build", str(tmp_path)])
+        assert (tmp_path / "llms.txt").read_text(encoding="utf-8").startswith("# Acme Docs\n")
+        assert (tmp_path / "llms-full.txt").read_text(encoding="utf-8").startswith("# Acme Docs\n")
+
+
 def test_version_flag(capsys):
     with pytest.raises(SystemExit) as exc:
         main(["--version"])

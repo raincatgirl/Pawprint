@@ -50,6 +50,9 @@ readable to an AI engine, or more honest about who is reading it.**
 
 ## Tick log
 
+- **2026-10-08** — Bug fix, no new flags. The `llms.txt` H1 is taken from
+  `index.md`, not from whichever root-level page sorted first. A site with a
+  `changelog.md` was named "Changelog".
 - **2026-10-07** — Bug fix, no new flags. Indented code blocks are no longer
   used as `llms.txt` summaries. Found by reading `_first_prose_paragraph`.
 - **2026-10-06** — `build --check` shipped. Exit code, not a warning.

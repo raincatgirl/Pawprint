@@ -197,3 +197,38 @@ def test_site_name_uses_first_toplevel_page(tmp_path):
 def test_site_name_default_when_only_nested():
     page = parse_page("/x/a/b.md", "a/b.md", "# B\n")
     assert site_name([page], default="Fallback") == "Fallback"
+
+
+class TestSiteNamePrefersIndex:
+    """The site name is the H1 of llms.txt: it must come from index.md.
+
+    `site_name` used to return the first *sorted* top-level page, so a site
+    with a root-level changelog.md or about.md got that page's title as the
+    name of the whole site.
+    """
+
+    def test_root_index_wins_over_alphabetically_earlier_page(self, tmp_path):
+        (tmp_path / "index.md").write_text(
+            "---\ntitle: Real Site Name\n---\nx\n", encoding="utf-8"
+        )
+        (tmp_path / "changelog.md").write_text(
+            "---\ntitle: Changelog\n---\nx\n", encoding="utf-8"
+        )
+        assert site_name(collect(str(tmp_path)).pages) == "Real Site Name"
+
+    def test_nested_index_does_not_name_the_site(self, tmp_path):
+        # Only nested content: a directory landing page is not the site name,
+        # so the default stands rather than picking an arbitrary sub-page.
+        (tmp_path / "guide").mkdir()
+        (tmp_path / "guide" / "index.md").write_text(
+            "---\ntitle: The Guide\n---\nx\n", encoding="utf-8"
+        )
+        (tmp_path / "guide" / "install.md").write_text(
+            "---\ntitle: Install\n---\nx\n", encoding="utf-8"
+        )
+        assert site_name(collect(str(tmp_path)).pages, default="Fallback") == "Fallback"
+
+    def test_falls_back_to_first_page_when_no_index_exists(self, tmp_path):
+        (tmp_path / "changelog.md").write_text("---\ntitle: Changelog\n---\nx\n", encoding="utf-8")
+        (tmp_path / "guide.md").write_text("---\ntitle: Guide\n---\nx\n", encoding="utf-8")
+        assert site_name(collect(str(tmp_path)).pages) == "Changelog"

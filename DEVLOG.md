@@ -1,5 +1,56 @@
 # Devlog
 
+## 2026-10-08 — the site name came from the wrong page
+
+### What changed
+
+`site_name()` returned the first page at the root of the content tree, and
+pages arrive sorted by path. So it returned the alphabetically first
+root-level file, not `index.md`. A site with a root-level `changelog.md` had
+this H1 in both generated files:
+
+    # Changelog
+
+`index.md` sorts under "i", behind `about.md`, `api.md`, `changelog.md`, and
+every other root-level page a real project accumulates. The closer a project's
+content looked like a real project, the more reliably the name came out wrong.
+
+### Why it matters
+
+The H1 of `llms.txt` is the one line of the whole file that states what the
+site is. A model reading the file is being told, confidently, that this is a
+changelog. It is not a cosmetic problem: this is the same class of bug as the
+lead-page bug already recorded under v0.1.0, and it survived that fix because
+`site_name` was never given the same treatment.
+
+The existing test passed by accident. `test_site_name_uses_first_toplevel_page`
+wrote one top-level file — `index.md` itself — so "first top-level page" and
+"index.md" were the same page and the distinction was invisible. That is why
+the new tests all add a second root-level file.
+
+### The fix
+
+A root `index.md` is looked for first, then the first top-level page as
+before. A nested page still never names the site, so `test_site_name_default_
+when_only_nested` keeps passing: a directory landing page is not the name of
+the site, and "This site" is a better H1 than a sub-section's title.
+
+I first tried delegating to `lead_page()`, which already has the right
+priority order. That made `site_name` name the site after `guide/index.md`
+when the only top-level content is a directory, which is a real behaviour
+change beyond this bug's blast radius. The explicit two-pass version fixes the
+reported bug and changes nothing else.
+
+### Tests
+
+Four new: the root-index-beats-sibling case at the unit level, the same
+through the CLI asserting the first line of both generated files, the nested
+case as a regression guard on the old rule, and the no-index-anywhere
+fallback. The nested and fallback cases passed before the fix and are there to
+say so explicitly.
+
+Suite: 92 → 96.
+
 ## 2026-10-07 — indented code is no longer a page summary
 
 ### What changed
@@ -141,3 +192,6 @@ satisfy it, that test fails and the scoring stays honest.
   URLs (`/guide/intro/` with a trailing slash, or extensionless via a router)
   will need `--base-url` plus a manual mapping.
 - No diffing and no HTML input yet. Both on the roadmap.
+- `site_name` did not follow the same priority rule as `lead_page`; a site
+  with a root-level page sorting before `index.md` was named after that page.
+  Fixed 2026-10-08.

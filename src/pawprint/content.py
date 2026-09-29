@@ -291,8 +291,20 @@ def _first_prose_paragraph(body: str) -> str:
 
 
 def site_name(pages: Iterable[Page], default: str = "This site") -> str:
-    """Pick a site name: the root index page title if there is one, else the
-    first page, else ``default``."""
+    """Pick a site name for the H1 of the generated files.
+
+    A root ``index.md`` names the site. Failing that, the first top-level page
+    does — but never a nested one, since a directory landing page is not the
+    name of the site and "This site" is a better H1 than a sub-section's.
+
+    The old version returned whichever top-level page sorted first, so a site
+    with a root-level ``changelog.md`` or ``about.md`` was named after that
+    page instead of after its own index.
+    """
+    pages = list(pages)
+    for page in pages:
+        if page.rel_path == "index.md":
+            return page.title
     for page in pages:
         if "/" not in page.rel_path:
             return page.title
