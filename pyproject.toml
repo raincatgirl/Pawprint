@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pawprint"
+version = "0.1.0"
+description = "Zero-dependency GEO toolkit: llms.txt generation and AI-readiness auditing."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Raincatgirl" }]
+keywords = ["llms-txt", "geo", "seo", "generative-engine-optimization", "accessibility"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Internet :: WWW/HTTP :: Site Management",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/raincatgirl/Pawprint"
+Repository = "https://github.com/raincatgirl/Pawprint"
+Issues = "https://github.com/raincatgirl/Pawprint/issues"
+
+[project.scripts]
+pawprint = "pawprint.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+pythonpath = ["src"]
