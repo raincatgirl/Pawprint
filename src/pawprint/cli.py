@@ -37,6 +37,11 @@ def _build_parser() -> argparse.ArgumentParser:
     build.add_argument("--name", default=None, help="site name for the H1")
     build.add_argument("--base-url", default="", help="origin prefix, e.g. https://example.com")
     build.add_argument("--include-drafts", action="store_true", help="include pages marked draft: true")
+    build.add_argument(
+        "--check",
+        action="store_true",
+        help="do not write; exit non-zero if the existing llms.txt is missing or stale",
+    )
     build.add_argument("--json", action="store_true", help="emit a JSON summary instead of text")
 
     audit = sub.add_parser("audit", help="score how legible the site is to an AI engine")
@@ -52,16 +57,40 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _check_target(out_dir: str, filename: str, expected: str) -> tuple[bool, str]:
+    """Compare a generated file against what is on disk.
+
+    Returns ``(ok, reason)`` where reason is ``fresh``, ``missing``, or
+    ``unreadable``. Byte comparison only: the point of ``--check`` is to ask
+    "would a build change this file", not to explain why.
+    """
+    path = os.path.join(out_dir, filename)
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            actual = handle.read()
+    except FileNotFoundError:
+        return False, "missing"
+    except (OSError, UnicodeDecodeError):
+        return False, "unreadable"
+    if actual == expected:
+        return True, "fresh"
+    return False, "stale"
+
+
 def cmd_build(args: argparse.Namespace) -> int:
     pages = collect(args.root, include_drafts=args.include_drafts)
     out_dir = args.out or args.root
-    os.makedirs(out_dir, exist_ok=True)
 
     index = render_index(pages, name=args.name, base_url=args.base_url)
     full = render_full(pages, name=args.name)
 
     index_path = os.path.join(out_dir, "llms.txt")
     full_path = os.path.join(out_dir, "llms-full.txt")
+
+    if args.check:
+        return _report_check(args, pages, out_dir, index, full, index_path, full_path)
+
+    os.makedirs(out_dir, exist_ok=True)
     with open(index_path, "w", encoding="utf-8") as handle:
         handle.write(index)
     with open(full_path, "w", encoding="utf-8") as handle:
@@ -84,6 +113,48 @@ def cmd_build(args: argparse.Namespace) -> int:
     if not pages.pages:
         print("\nNo content pages found. Point pawprint at a directory of .md files.")
     return 0
+
+
+def _report_check(
+    args: argparse.Namespace,
+    pages,
+    out_dir: str,
+    index: str,
+    full: str,
+    index_path: str,
+    full_path: str,
+) -> int:
+    """Print whether the generated files match what is on disk. Never writes."""
+    index_ok, index_reason = _check_target(out_dir, "llms.txt", index)
+    full_ok, full_reason = _check_target(out_dir, "llms-full.txt", full)
+    ok = index_ok and full_ok
+    reason = index_reason if not index_ok else full_reason
+
+    if args.json:
+        print(json.dumps({
+            "root": args.root,
+            "out": out_dir,
+            "pages": len(pages),
+            "stale": not ok,
+            "reason": reason if not ok else "fresh",
+            "files": {
+                "llms.txt": {"path": index_path, "reason": index_reason},
+                "llms-full.txt": {"path": full_path, "reason": full_reason},
+            },
+        }, indent=2, ensure_ascii=False))
+        return 0 if ok else 1
+
+    if ok:
+        print(f"llms.txt is up to date ({len(pages)} pages).")
+        return 0
+
+    label = "stale" if reason == "stale" else reason
+    print(f"llms.txt is {label}. Run `pawprint build {args.root}` and commit the result.")
+    if not index_ok:
+        print(f"  llms.txt        {index_reason} ({index_path})")
+    if not full_ok:
+        print(f"  llms-full.txt   {full_reason} ({full_path})")
+    return 1
 
 
 def cmd_audit(args: argparse.Namespace) -> int:

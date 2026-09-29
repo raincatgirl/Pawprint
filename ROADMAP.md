@@ -6,6 +6,7 @@ readable to an AI engine, or more honest about who is reading it.**
 ## Shipped (v0.1.0)
 
 - [x] `pawprint build` — generate `llms.txt` + `llms-full.txt` from a content tree
+- [x] `build --check` — exit non-zero when the generated files are stale, so CI enforces them
 - [x] `pawprint audit` — five-check AI-readiness score with a written report
 - [x] `pawprint policy` — which AI crawlers you allow or block, and why
 - [x] Zero dependencies, Python 3.9+
@@ -17,8 +18,6 @@ readable to an AI engine, or more honest about who is reading it.**
       (`llms.txt`, `robots.txt` skeleton) instead of only describing them
 - [ ] `pawprint diff OLD NEW` — what changed between two `llms.txt` revisions,
       so a CI job can flag accidental removals from the index
-- [ ] `--check` mode for build: exit non-zero when `llms.txt` is stale relative
-      to the content tree, so CI enforces it
 
 ### v0.3 — other content formats
 - [ ] AsciiDoc / reStructuredText readers, same `Page` shape
@@ -48,3 +47,8 @@ readable to an AI engine, or more honest about who is reading it.**
 - **Scores are legible, not precise.** Five checks worth 20 points each. The
   report matters; the number is a handle for it.
 - **No telemetry, ever.**
+
+## Tick log
+
+- **2026-10-06** — `build --check` shipped. Exit code, not a warning.
+

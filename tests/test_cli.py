@@ -123,6 +123,84 @@ def test_policy_fix_prints_starter(tmp_path, capsys):
     assert "Sitemap:" in out
 
 
+class TestBuildCheck:
+    """`build --check` answers "is the committed llms.txt current?" without writing."""
+
+    def test_check_fails_when_llms_txt_missing(self, tmp_path, capsys):
+        _site(tmp_path)
+        assert main(["build", str(tmp_path), "--check"]) == 1
+        out = capsys.readouterr().out
+        assert "missing" in out
+        assert not (tmp_path / "llms.txt").exists()
+
+    def test_check_passes_when_fresh(self, tmp_path, capsys):
+        _site(tmp_path)
+        main(["build", str(tmp_path)])
+        capsys.readouterr()
+        assert main(["build", str(tmp_path), "--check"]) == 0
+        assert "up to date" in capsys.readouterr().out
+
+    def test_check_fails_when_content_added(self, tmp_path, capsys):
+        _site(tmp_path)
+        main(["build", str(tmp_path)])
+        (tmp_path / "guide" / "later.md").write_text(
+            "---\ntitle: Later\ndescription: Added after the build.\n---\n# Later\n\nMore.\n",
+            encoding="utf-8",
+        )
+        capsys.readouterr()
+        assert main(["build", str(tmp_path), "--check"]) == 1
+        assert "stale" in capsys.readouterr().out
+
+    def test_check_fails_when_content_edited(self, tmp_path, capsys):
+        _site(tmp_path)
+        main(["build", str(tmp_path)])
+        text = (tmp_path / "guide" / "start.md").read_text(encoding="utf-8")
+        (tmp_path / "guide" / "start.md").write_text(
+            text.replace("Begin.", "Begin here, with more words than before."), encoding="utf-8"
+        )
+        capsys.readouterr()
+        assert main(["build", str(tmp_path), "--check"]) == 1
+
+    def test_check_does_not_write(self, tmp_path, capsys):
+        _site(tmp_path)
+        main(["build", str(tmp_path)])
+        (tmp_path / "guide" / "later.md").write_text(
+            "---\ntitle: Later\ndescription: Added after the build.\n---\n# Later\n\nMore.\n",
+            encoding="utf-8",
+        )
+        before = (tmp_path / "llms.txt").read_text(encoding="utf-8")
+        assert main(["build", str(tmp_path), "--check"]) == 1
+        assert (tmp_path / "llms.txt").read_text(encoding="utf-8") == before
+
+    def test_check_json_reports_state(self, tmp_path, capsys):
+        _site(tmp_path)
+        main(["build", str(tmp_path)])
+        capsys.readouterr()
+        assert main(["build", str(tmp_path), "--check", "--json"]) == 0
+        data = json.loads(capsys.readouterr().out)
+        assert data["stale"] is False
+        assert data["pages"] == 2
+
+    def test_check_json_missing_is_stale(self, tmp_path, capsys):
+        _site(tmp_path)
+        assert main(["build", str(tmp_path), "--check", "--json"]) == 1
+        data = json.loads(capsys.readouterr().out)
+        assert data["stale"] is True
+        assert data["reason"] == "missing"
+
+    def test_check_reads_out_dir(self, tmp_path, capsys):
+        _site(tmp_path)
+        out_dir = tmp_path / "dist"
+        main(["build", str(tmp_path), "--out", str(out_dir)])
+        capsys.readouterr()
+        assert main(["build", str(tmp_path), "--out", str(out_dir), "--check"]) == 0
+        assert main(["build", str(tmp_path), "--check"]) == 1
+
+    def test_check_without_build_exits_one(self, tmp_path, capsys):
+        _site(tmp_path)
+        assert main(["build", str(tmp_path), "--check", "--include-drafts"]) == 1
+
+
 def test_version_flag(capsys):
     with pytest.raises(SystemExit) as exc:
         main(["--version"])

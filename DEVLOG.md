@@ -1,5 +1,42 @@
 # Devlog
 
+## 2026-10-06 — `build --check`
+
+### What changed
+
+`pawprint build <root> --check` renders both output files in memory, compares
+them byte-for-byte with what is on disk, and exits 1 if either differs. It
+never writes a file or creates a directory, so it is safe to run on a working
+tree you do not want touched. The failure reason is one of `missing`, `stale`,
+or `unreadable`, per file.
+
+### Why
+
+`llms.txt` is a pure function of the content tree. That is the whole design
+and it has a consequence worth cashing in: "would rebuilding change this file"
+is exactly answerable, so a CI job can enforce the index without a Git diff, a
+lockfile, or any knowledge of the content beyond what is already on disk.
+
+The obvious alternative is comparing mtimes, and it is the wrong tool. A fresh
+clone, a fresh CI container, and a `git checkout` all give the generated file
+a newer mtime than the source with no actual content difference. That approach
+fails constantly, and a check people learn to ignore is worse than no check.
+
+The report is a verdict and a command, not a diff. Someone reading a red CI log
+needs to know what broke and what to run; the line-by-line delta is what
+`git diff` is for, and it is already one command away.
+
+### Tests
+
+Nine new, all in `TestBuildCheck`. They cover the four states (missing, fresh,
+stale-by-addition, stale-by-edit), the guarantee that `--check` does not mutate
+`llms.txt`, both JSON shapes, `--out` awareness (a check against the wrong
+directory must fail), and a plain tree that was never built. The no-write test
+is the one that earns its keep — a check mode that quietly rewrites the file
+it is checking is a broken check.
+
+Suite: 81 → 90.
+
 ## v0.1.0 — 2026-10-05
 
 First cut. Three verbs, one promise: no install, no network, no account.

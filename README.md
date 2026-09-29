@@ -12,6 +12,7 @@ understand your site — then fix what they can't.
 | Command | Purpose |
 |---|---|
 | `pawprint build` | Generate `llms.txt` + `llms-full.txt` from a content tree |
+| `pawprint build --check` | CI mode: exit non-zero if the generated files are stale |
 | `pawprint audit` | Score AI-readiness: crawl policy, citation surface, structure |
 | `pawprint policy` | Show which AI crawlers you allow/block and why |
 
@@ -55,6 +56,9 @@ pawprint build docs/ --out dist/
 
 # 3. Check your crawler policy
 pawprint policy
+
+# 4. In CI, fail the build if the generated files drifted
+pawprint build docs/ --out dist/ --check
 ```
 
 Output lands in `dist/llms.txt` and `dist/llms-full.txt`, ready to deploy
