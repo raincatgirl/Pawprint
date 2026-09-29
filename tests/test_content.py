@@ -166,10 +166,34 @@ def test_plain_text_keeps_underscores_inside_link_targets():
     assert "docs/config_2.md" in out
 
 
+def test_plain_text_keeps_underscores_in_dunder_identifiers():
+    # The word-boundary guard excluded only [A-Za-z0-9], so a run of two
+    # leading underscores looked like an emphasis opener. `__init__` came
+    # out as `init` and `__name__` as `name` -- exactly the URLs and API
+    # names the plain text exists to preserve, just in a different costume.
+    out = plain_text("Override __init__ and check __name__ against __main__.")
+    assert "__init__" in out
+    assert "__name__" in out
+    assert "__main__" in out
+
+
+def test_plain_text_keeps_underscores_in_link_targets_with_dunders():
+    out = plain_text("See [dunder](src/__init__.py) for details.")
+    assert "src/__init__.py" in out
+
+
 def test_plain_text_still_strips_snake_case_emphasis():
     # _word_ at a boundary is emphasis and must still go.
     out = plain_text("This is _emphasised_ text.")
     assert "emphasised" in out
+    assert "_" not in out
+
+
+def test_plain_text_still_strips_doubled_underscore_emphasis():
+    # __word__ at a real boundary is still emphasis (strong italic), so the
+    # fix must not make the marker unstrippable.
+    out = plain_text("This is __strongly emphasised__ text.")
+    assert "strongly emphasised" in out
     assert "_" not in out
 
 

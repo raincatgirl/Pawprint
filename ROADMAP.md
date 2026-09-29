@@ -50,6 +50,10 @@ readable to an AI engine, or more honest about who is reading it.**
 
 ## Tick log
 
+- **2026-10-11** — Bug fix, no new flags. `plain_text` turned `__init__`
+  into `init` and `__name__` into `name`, because the emphasis-stripper's
+  word-boundary guard did not count `_` as an identifier character. Found by
+  reading `_EMPHASIS_RE`.
 - **2026-10-10** — Bug fix, no new flags. `index.markdown` was collected but
   never recognised as a homepage, so it was linked at `/index` and the site
   was named after a sibling page. Found by reading `Page.url`.

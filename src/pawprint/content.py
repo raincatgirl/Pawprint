@@ -232,17 +232,35 @@ def collect(root: str, *, include_drafts: bool = False) -> PageSet:
 
 
 # Emphasis markers only count when they open or close a word. An underscore
-# between two word characters is part of an identifier (`max_tokens`,
-# `load_user_profile()`), and deleting it corrupts the very URLs and API names
-# the plain text exists to preserve.
+# next to any identifier character is part of that identifier
+# (`max_tokens`, `load_user_profile()`), and deleting it corrupts the very
+# URLs and API names the plain text exists to preserve. The guard has to
+# include `_` itself, since an underscore is neither punctuation before an
+# identifier nor a word boundary inside one.
 _EMPHASIS_RE = re.compile(
-    r"(?<![A-Za-z0-9])([*_]{1,3})(?=\S)(.+?)(?<=\S)\1(?![A-Za-z0-9])"
+    r"(?<![A-Za-z0-9_])([*_]{1,3})(?=\S)(.+?)(?<=\S)\1(?![A-Za-z0-9_])"
 )
+
+# A doubled underscore is the one genuinely ambiguous case. By the letter of
+# CommonMark, `__init__` is strong emphasis just as much as `__really__` is,
+# because the opening run is preceded by a space and followed by a letter.
+# In practice the overwhelmingly common use of `__word__` on a technical site
+# is a dunder, and a mangled `__init__` is a wrong fact where `__really__`
+# left alone is only a missed decoration. So a doubled run wrapped tight
+# around identifier characters is treated as part of the identifier, and
+# everything else stays eligible for emphasis stripping.
+_DUNDER_RE = re.compile(r"(?<![A-Za-z0-9_])__([A-Za-z0-9_]+)__(?![A-Za-z0-9_])")
+_PARK_RE = re.compile("\x00([A-Za-z0-9_]*)\x00")
 
 
 def _strip_emphasis(line: str) -> str:
     """Remove ``*bold*`` and ``_italic_`` without touching identifiers."""
-    return _EMPHASIS_RE.sub(r"\2", line)
+    if "__" not in line:
+        return _EMPHASIS_RE.sub(r"\2", line)
+    # Park the dunder's inner name between two NULs so the emphasis pass
+    # cannot read its underscores as markers, then restore the real name.
+    parked = _DUNDER_RE.sub(lambda m: "\x00" + m.group(1) + "\x00", line)
+    return _PARK_RE.sub(r"__\1__", _EMPHASIS_RE.sub(r"\2", parked))
 
 
 def plain_text(markdown: str) -> str:

@@ -1,5 +1,42 @@
 # Devlog
 
+## 2026-10-11 — `plain_text` was eating Python dunder identifiers
+
+### What changed
+
+The emphasis stripper decides whether `*` or `_` is a formatting marker or
+part of an identifier by checking the characters on either side of it. The
+character class guarding that decision was `[A-Za-z0-9]`, which covers
+`snake_case` but not `_` itself.
+
+So for a dunder there was nothing on the left to stop it: `__init__` opened
+with a run of underscores preceded by a space, which looks exactly like
+strong emphasis. The result:
+
+```
+Override __init__ and check __name__ against __main__.
+-> Override init and check name against main.
+
+See [dunder](src/__init__.py) for details.
+-> See dunder (src/init.py) for details.
+```
+
+The guard now includes `_`, and a doubled underscore wrapped tight around
+identifier characters is explicitly treated as part of the identifier. That
+second rule is a deliberate tie-break in a genuinely ambiguous case: by the
+letter of CommonMark, `__init__` is strong emphasis exactly as much as
+`__really__` is. On a technical site the common case is overwhelmingly the
+dunder, and a mangled `__init__` is a wrong fact, where an unstripped
+`__really__` is only a missed decoration. The asymmetry is intentional.
+
+### Why it matters
+
+`llms-full.txt` is fed to an engine that will quote identifiers back at the
+reader. An API name that has lost its underscores is not a decoration issue,
+it is a name that no longer exists, and the reader who trusts the summary
+gets a `ModuleNotFoundError` instead of an answer. This is the same failure
+as the 2026-10-09 `snake_case` fix, one character class short.
+
 ## 2026-10-10 — `.markdown` homepages were invisible to the index rules
 
 ### What changed
