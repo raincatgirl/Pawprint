@@ -50,6 +50,9 @@ readable to an AI engine, or more honest about who is reading it.**
 
 ## Tick log
 
+- **2026-10-10** — Bug fix, no new flags. `index.markdown` was collected but
+  never recognised as a homepage, so it was linked at `/index` and the site
+  was named after a sibling page. Found by reading `Page.url`.
 - **2026-10-09** — Bug fix, no new flags. `plain_text` was deleting the
   underscores out of `snake_case` identifiers, because the emphasis stripper
   had no word boundaries. Found by reading `plain_text`.

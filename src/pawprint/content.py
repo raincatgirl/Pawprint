@@ -46,6 +46,16 @@ _ORDER_RE = re.compile(r"^order\s*:\s*(\d+)\s*$")
 _DRAFT_RE = re.compile(r"^draft\s*:\s*(true|false)\s*$", re.IGNORECASE)
 _H1_RE = re.compile(r"^#\s+(.+?)\s*$", re.MULTILINE)
 
+# Any `index` with a content suffix is a landing page, not a page called
+# "index". Hardcoding `.md` here meant `index.markdown` — which the walker
+# happily collects — was linked at `/index` and never named the site.
+_INDEX_STEMS = tuple(f"index{suffix}" for suffix in CONTENT_SUFFIXES)
+
+
+def is_index_path(rel_path: str) -> bool:
+    """True when a relative path names a directory or site landing page."""
+    return rel_path.rsplit("/", 1)[-1] in _INDEX_STEMS
+
 
 @dataclass(frozen=True)
 class Page:
@@ -76,8 +86,9 @@ class Page:
 
         ``docs/guide.md`` -> ``/docs/guide``; ``index.md`` -> ``/``;
         ``docs/index.md`` -> ``/docs/``; ``README.md`` -> ``/README``.
+        Any content suffix counts, so ``index.markdown`` is also ``/``.
         """
-        if self.rel_path.endswith("/index.md") or self.rel_path == "index.md":
+        if is_index_path(self.rel_path):
             parent = self.rel_path.rsplit("/", 1)[0] if "/" in self.rel_path else ""
             return "/" + (parent + "/" if parent else "")
         return "/" + self.rel_path.rsplit(".", 1)[0]
@@ -317,7 +328,7 @@ def site_name(pages: Iterable[Page], default: str = "This site") -> str:
     """
     pages = list(pages)
     for page in pages:
-        if page.rel_path == "index.md":
+        if "/" not in page.rel_path and is_index_path(page.rel_path):
             return page.title
     for page in pages:
         if "/" not in page.rel_path:
@@ -332,10 +343,10 @@ def lead_page(pages: Iterable[Page]) -> Page | None:
     nested page that happens to sort first alphabetically.
     """
     for page in pages:
-        if page.rel_path == "index.md":
+        if "/" not in page.rel_path and is_index_path(page.rel_path):
             return page
     for page in pages:
-        if page.rel_path.endswith("/index.md"):
+        if is_index_path(page.rel_path):
             return page
     for page in pages:
         return page

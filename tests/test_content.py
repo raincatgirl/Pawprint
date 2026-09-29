@@ -78,6 +78,18 @@ def test_parse_page_url_rules():
     assert parse_page("/x/README.md", "README.md", "t").url == "/README"
 
 
+def test_parse_page_url_treats_markdown_suffix_as_index():
+    """`.markdown` is a content suffix, so `index.markdown` is a homepage too.
+
+    Only `index.md` used to be recognised, so a site whose homepage uses the
+    long suffix was titled after a sibling page and linked at `/index`.
+    """
+    assert parse_page("/x/index.markdown", "index.markdown", "t").url == "/"
+    assert parse_page("/x/a/index.markdown", "a/index.markdown", "t").url == "/a/"
+    # A non-index page keeps its own name either way.
+    assert parse_page("/x/a.markdown", "a.markdown", "t").url == "/a"
+
+
 def test_collect_skips_hidden_and_vendor_dirs(tmp_path):
     (tmp_path / "a.md").write_text("# A\n", encoding="utf-8")
     (tmp_path / ".git").mkdir()
@@ -253,3 +265,20 @@ class TestSiteNamePrefersIndex:
         (tmp_path / "changelog.md").write_text("---\ntitle: Changelog\n---\nx\n", encoding="utf-8")
         (tmp_path / "guide.md").write_text("---\ntitle: Guide\n---\nx\n", encoding="utf-8")
         assert site_name(collect(str(tmp_path)).pages) == "Changelog"
+
+
+class TestSiteNameSeesMarkdownSuffix:
+    """`index.markdown` names the site exactly as `index.md` does.
+
+    The index checks hardcoded `index.md` while the walker accepted both
+    suffixes, so a long-suffix homepage was ignored.
+    """
+
+    def test_root_index_markdown_wins(self, tmp_path):
+        (tmp_path / "index.markdown").write_text(
+            "---\ntitle: Long Suffix Site\n---\nx\n", encoding="utf-8"
+        )
+        (tmp_path / "changelog.md").write_text(
+            "---\ntitle: Changelog\n---\nx\n", encoding="utf-8"
+        )
+        assert site_name(collect(str(tmp_path)).pages) == "Long Suffix Site"

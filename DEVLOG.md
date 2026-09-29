@@ -1,5 +1,42 @@
 # Devlog
 
+## 2026-10-10 — `.markdown` homepages were invisible to the index rules
+
+### What changed
+
+`CONTENT_SUFFIXES` is `(".md", ".markdown")`, so the walker collects
+`index.markdown`. But every "is this a landing page?" check hardcoded the
+literal string `index.md`: `Page.url`, `site_name`, and `lead_page`. So a site
+whose homepage used the long suffix got this output:
+
+```
+# Changelog
+
+- [Changelog](/changelog): Notes.
+- [My Docs](/index): Hello there.
+```
+
+The homepage was named after a sibling page and linked at a URL that does not
+exist on most static hosts.
+
+There is now one predicate, `content.is_index_path`, derived from
+`CONTENT_SUFFIXES` rather than written out again, and all three call sites use
+it. A third suffix added later works without a second edit.
+
+### Why it matters
+
+`llms.txt` is a map of the site. An entry pointing at `/index` when the page
+is served at `/` is not a useful map — it is a dead link in the one file whose
+entire job is not to have dead links. And the whole "site name comes from the
+homepage" fix from two ticks ago silently did not apply to half the input the
+tool claims to read.
+
+### Tests
+
+Three new: the URL rules for `index.markdown` at root and nested, the site
+name, and a render-level check that the output links to `/` and never to
+`/index`. Suite: 99 → 102.
+
 ## 2026-10-09 — underscores were stripped out of identifiers
 
 ### What changed

@@ -73,6 +73,16 @@ def test_index_name_override(tmp_path):
     assert out.startswith("# Override")
 
 
+def test_index_markdown_homepage_links_to_origin(tmp_path):
+    """A long-suffix homepage links to `/`, never to a dead `/index`."""
+    _page(tmp_path, "index.markdown", "---\ntitle: Home\n---\nx\n")
+    _page(tmp_path, "changelog.md", "---\ntitle: Changelog\n---\nx\n")
+    out = render_index(collect(str(tmp_path)))
+    assert out.startswith("# Home")
+    assert "](/)" in out
+    assert "](/index)" not in out
+
+
 def test_full_contains_every_page_with_source(tmp_path):
     _page(tmp_path, "a.md", "# Alpha\n\nalpha body\n")
     _page(tmp_path, "b.md", "# Beta\n\nbeta body\n")
