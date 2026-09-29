@@ -1,5 +1,53 @@
 # Devlog
 
+## 2026-10-13 — `parse_robots` never closed a group
+
+### What changed
+
+The parser tracked a list of "current" user-agents and appended every rule it
+saw to all of them, but nothing ever cleared that list. So a second group in the
+file was treated as more agents belonging to the first:
+
+```
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ClaudeBot
+Allow: /
+```
+
+parsed as `gptbot: [Disallow: /, Allow: /]` and `claudebot: [Allow: /]`. The
+verdict for GPTBot came back "partial" — the one state that means "some paths
+blocked, some open" — when in fact the site had blocked it outright. Worse, a
+file listing a training crawler it intended to block, *after* a citation crawler
+it intended to allow, would show that training crawler as "allowed" and emit a
+recommendation that it should be blocked, which it already was.
+
+This is the ordinary robots.txt shape. Any site with more than one group was
+being misreported, and `pawprint policy` states its findings as fact.
+
+### Why
+
+A group is a run of `User-agent:` lines followed by the rules that apply to
+them, and a group ends when the next one starts. The parser now tracks whether
+any rule has been seen: the first rule seals the group, and both a blank line
+and the next `User-agent:` line after that open a fresh one. A blank line
+between `User-agent:` lines with no rules yet is not a boundary, so the
+multi-agent-per-group form (`test_multiple_user_agents_share_rules`) still
+parses as one group.
+
+Nothing else changed. No new flags, no new files, still stdlib only. The old
+`flush()` helper and the "leading group belongs to everyone" special case went
+away with the bug: `groups.setdefault` on the agent line already did that work,
+which is why the dead helper could hide the missing reset for so long.
+
+### Tests
+
+Four new tests, all of which failed before the fix: blank line separates
+groups, rules do not leak into the next group, a group ends at the next
+`User-agent:` line even with no blank line, and the end-to-end verdict for a
+blocked GPTBot in a two-group file. 109 tests before, 113 after.
+
 ## 2026-10-12 — `plain_text` left a backtick between two code spans
 
 ### What changed

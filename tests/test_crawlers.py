@@ -40,6 +40,36 @@ def test_multiple_user_agents_share_rules():
     assert len(out["groups"]["b"]) == 1
 
 
+def test_blank_line_separates_groups():
+    out = parse_robots("User-agent: A\nDisallow: /x\n\nUser-agent: B\nDisallow: /y\n")
+    assert out["groups"]["a"] == [(False, "/x")]
+    assert out["groups"]["b"] == [(False, "/y")]
+
+
+def test_rules_do_not_leak_into_the_next_group():
+    # A blank line ends the GPTBot group; ClaudeBot's Allow must not be
+    # appended to it, or GPTBot reads as "partial" when it is fully blocked.
+    out = parse_robots(
+        "User-agent: GPTBot\nDisallow: /\n\nUser-agent: ClaudeBot\nAllow: /\n"
+    )
+    assert out["groups"]["gptbot"] == [(False, "/")]
+    assert out["groups"]["claudebot"] == [(True, "/")]
+
+
+def test_group_ends_at_the_next_user_agent_line():
+    # No blank line, but a rule already closed the group, so a following
+    # User-agent starts a fresh one.
+    out = parse_robots("User-agent: A\nDisallow: /x\nUser-agent: B\nDisallow: /y\n")
+    assert out["groups"]["a"] == [(False, "/x")]
+    assert out["groups"]["b"] == [(False, "/y")]
+
+
+def test_verdict_does_not_borrow_another_groups_allow():
+    c = next(x for x in CRAWLERS if x.name == "GPTBot")
+    robots = parse_robots("User-agent: GPTBot\nDisallow: /\n\nUser-agent: ClaudeBot\nAllow: /\n")
+    assert verdict(c, robots) == "blocked"
+
+
 def test_unreachable_lists_named_crawlers():
     out = parse_robots("User-agent: GPTBot\nAllow: /\n")
     assert "ClaudeBot" in out["unreachable"]

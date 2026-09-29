@@ -50,6 +50,13 @@ readable to an AI engine, or more honest about who is reading it.**
 
 ## Tick log
 
+- **2026-10-13** — Bug fix, no new flags. `parse_robots` never closed a
+  group, so every rule in the file after the first `User-agent:` line was
+  applied to every agent named in it. A robots.txt that blocked GPTBot and
+  allowed ClaudeBot reported GPTBot as "partial" instead of "blocked", and
+  reported ClaudeBot as reading a `Disallow: /` it never had. `pawprint policy`
+  was making confident, false statements about who can read a site. Found by
+  reading `parse_robots`.
 - **2026-10-12** — Bug fix, no new flags. `plain_text` stripped backticks with
   a pattern anchored to the start and end of the *line*, so a sentence with two
   inline code spans came out as ``a` and `b``. The audit's word count reads

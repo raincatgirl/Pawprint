@@ -66,16 +66,22 @@ def parse_robots(text: str) -> dict[str, object]:
     groups: dict[str, list[tuple[bool, str]]] = {}
     sitemaps: list[str] = []
     current: list[str] = []
-
-    def flush() -> None:
-        nonlocal current
-        for agent in current:
-            groups.setdefault(agent, [])
-        current = []
+    # A group is the run of User-agent lines followed by the rules that apply
+    # to them. Once a rule has been seen, the next User-agent line starts a
+    # new group, even with no blank line in between (RFC 9309 allows both).
+    # Without this, a second group's rules get appended to the first group's
+    # members, and a site that blocks GPTBot and allows ClaudeBot reads as
+    # "GPTBot: partial" — a claim about a crawler's access that is simply false.
+    sealed = False
 
     for raw in text.split("\n"):
         line = raw.split("#", 1)[0].strip()
         if not line:
+            # Blank line after rules closes the group. A blank line between
+            # User-agent lines of the same group is not a boundary, so a
+            # group still collecting agents stays open.
+            if sealed:
+                current = []
             continue
         sitemap = _SITEMAP_RE.match(line)
         if sitemap:
@@ -83,6 +89,8 @@ def parse_robots(text: str) -> dict[str, object]:
             continue
         agent = _DIRECTIVE_RE.match(line)
         if agent:
+            if sealed:
+                current = []
             name = agent.group(1).lower()
             if name not in current:
                 current.append(name)
@@ -97,10 +105,7 @@ def parse_robots(text: str) -> dict[str, object]:
             elif disallow:
                 for name in current:
                     groups[name].append((False, disallow.group(1)))
-
-    # A leading group with no User-agent line belongs to everyone.
-    if not current and not groups:
-        flush()
+            sealed = True
 
     named = {name.lower() for name in groups}
     unreachable = {c.name for c in CRAWLERS if c.name.lower() not in named}
