@@ -1,5 +1,46 @@
 # Devlog
 
+## 2026-10-07 — indented code is no longer a page summary
+
+### What changed
+
+`_first_prose_paragraph` decided whether a block was structure or prose with
+`lines[0].lstrip().startswith(_SKIP_PREFIXES)`, and `_SKIP_PREFIXES` contained
+the string `"    "` (four spaces) to mean "indented code block". `lstrip()` runs
+before the comparison, so the four spaces it was looking for had already been
+removed. That check could never fire, and an indented code block was always
+treated as prose.
+
+Tab-indented code had the same bug for the same reason, via the `"\t"` prefix.
+
+### Why it matters
+
+A page that opens with a code sample instead of a sentence got that code
+sample as its one-line description in `llms.txt`. Given that this file's
+entire job is to be read by an LLM, an entry like
+
+    - [Config](/docs/config): import acme acme.connect("wss://example.com")
+
+is worse than no entry at all: a confident-looking but useless summary. This is
+the same class of bug as the "summaries read raw markdown" decision recorded
+under v0.1.0 — a strip-then-compare step quietly deleting the signal it was
+meant to test.
+
+### The fix
+
+The fix splits two concerns that had been tangled together. Structural markers
+that survive `lstrip()` stay in `_SKIP_PREFIXES`; anything whose meaning
+depends on leading whitespace is tested against the raw line by a new
+`_is_indented_code()`, which matches `^ {4,}` or a leading tab, per CommonMark.
+
+### Tests
+
+Two new, one per indent style. The tab case is kept deliberately: the two
+styles travel different branches of the new helper, and tabs are what a fair
+amount of real content actually uses.
+
+Suite: 90 → 92.
+
 ## 2026-10-06 — `build --check`
 
 ### What changed
@@ -99,4 +140,4 @@ satisfy it, that test fails and the scoring stays honest.
 - URL derivation assumes a file-extension-stripped mapping. Sites that rewrite
   URLs (`/guide/intro/` with a trailing slash, or extensionless via a router)
   will need `--base-url` plus a manual mapping.
-- No diffing, no CI mode, no HTML input yet. All on the roadmap.
+- No diffing and no HTML input yet. Both on the roadmap.

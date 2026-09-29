@@ -160,6 +160,25 @@ def test_summarise_skips_list_and_table_blocks():
     assert summarise(page) == "Real prose."
 
 
+def test_summarise_skips_indented_code_block():
+    # A 4-space indent is an indented code block, not a paragraph. Its lines
+    # must not become the one-line summary for the llms.txt index.
+    body = (
+        "# T\n\n"
+        "    from pathlib import Path\n"
+        "    root = Path('.')\n\n"
+        "Real prose about configuring things.\n"
+    )
+    page = parse_page("/x/a.md", "a.md", body)
+    assert summarise(page) == "Real prose about configuring things."
+
+
+def test_summarise_skips_tab_indented_code_block():
+    body = "# T\n\n\tpip install thing\n\nReal prose here.\n"
+    page = parse_page("/x/a.md", "a.md", body)
+    assert summarise(page) == "Real prose here."
+
+
 def test_summarise_truncates_on_word_boundary():
     body = "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu"
     page = parse_page("/x/a.md", "a.md", f"# T\n\n{body}\n")

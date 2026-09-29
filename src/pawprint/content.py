@@ -260,7 +260,18 @@ def summarise(page: Page, limit: int = 200) -> str:
     return cut + "..."
 
 
-_SKIP_PREFIXES = ("#", "-", "*", "+", ">", "|", "```", "    ", "\t")
+_SKIP_PREFIXES = ("#", "-", "*", "+", ">", "|", "```", "\t")
+_INDENT_RE = re.compile(r"^ {4,}")
+
+
+def _is_indented_code(line: str) -> bool:
+    """True for a line that CommonMark reads as an indented code block.
+
+    An indented code block is 4+ spaces, or a tab, at the start of a line.
+    This has to be checked against the *raw* line: stripping the leading
+    whitespace first would destroy the very indent being looked for.
+    """
+    return bool(_INDENT_RE.match(line)) or line.startswith("\t")
 
 
 def _first_prose_paragraph(body: str) -> str:
@@ -273,7 +284,7 @@ def _first_prose_paragraph(body: str) -> str:
         lines = [line for line in block.split("\n") if line.strip()]
         if not lines:
             continue
-        if lines[0].lstrip().startswith(_SKIP_PREFIXES):
+        if _is_indented_code(lines[0]) or lines[0].lstrip().startswith(_SKIP_PREFIXES):
             continue
         return " ".join(line.strip() for line in lines)
     return ""
