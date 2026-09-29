@@ -1,5 +1,34 @@
 # Devlog
 
+## 2026-10-09 — underscores were stripped out of identifiers
+
+### What changed
+
+`plain_text` stripped emphasis with `re.sub(r"[*_]{1,3}", "", line)`, applied to
+the whole line with no notion of word boundaries. Every underscore went, so
+`load_user_profile()` became `loaduserprofile()` and `max_tokens` became
+`maxtokens`.
+
+It is now a dedicated `_strip_emphasis` with a pattern that only treats a
+marker as emphasis when it opens or closes a word: the marker cannot sit
+directly against an alphanumeric on the outside. A bare `__init__` and a link
+target like `docs/config_2.md` survive intact.
+
+### Why it matters
+
+`plain_text` exists for one reason: to keep the URLs and names an LLM needs
+while dropping the markdown around them. The emphasis stripper was deleting
+exactly that. It feeds the audit's word count today, and anything that renders
+plain text would have inherited the corruption.
+
+### Tests
+
+Three new: identifiers keep their underscores, link targets keep theirs, and
+` _word_ ` at a boundary is still stripped. The third guards against "fixing"
+this by simply not stripping emphasis at all.
+
+Suite: 96 → 99.
+
 ## 2026-10-08 — the site name came from the wrong page
 
 ### What changed

@@ -50,6 +50,9 @@ readable to an AI engine, or more honest about who is reading it.**
 
 ## Tick log
 
+- **2026-10-09** — Bug fix, no new flags. `plain_text` was deleting the
+  underscores out of `snake_case` identifiers, because the emphasis stripper
+  had no word boundaries. Found by reading `plain_text`.
 - **2026-10-08** — Bug fix, no new flags. The `llms.txt` H1 is taken from
   `index.md`, not from whichever root-level page sorted first. A site with a
   `changelog.md` was named "Changelog".

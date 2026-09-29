@@ -220,6 +220,20 @@ def collect(root: str, *, include_drafts: bool = False) -> PageSet:
     return PageSet(root=root, pages=pages)
 
 
+# Emphasis markers only count when they open or close a word. An underscore
+# between two word characters is part of an identifier (`max_tokens`,
+# `load_user_profile()`), and deleting it corrupts the very URLs and API names
+# the plain text exists to preserve.
+_EMPHASIS_RE = re.compile(
+    r"(?<![A-Za-z0-9])([*_]{1,3})(?=\S)(.+?)(?<=\S)\1(?![A-Za-z0-9])"
+)
+
+
+def _strip_emphasis(line: str) -> str:
+    """Remove ``*bold*`` and ``_italic_`` without touching identifiers."""
+    return _EMPHASIS_RE.sub(r"\2", line)
+
+
 def plain_text(markdown: str) -> str:
     """Strip the markdown decorations an LLM does not need.
 
@@ -232,7 +246,7 @@ def plain_text(markdown: str) -> str:
         line = re.sub(r"\[([^\]]*)\]\(([^)]*)\)", r"\1 (\2)", line)
         line = re.sub(r"^#{1,6}\s*", "", line)
         line = re.sub(r"^>\s?", "", line)
-        line = re.sub(r"[*_]{1,3}", "", line)
+        line = _strip_emphasis(line)
         line = re.sub(r"^\s*[-*+]\s+", "- ", line)
         line = re.sub(r"^`{1,3}|`{1,3}$", "", line.strip())
         out.append(line.rstrip())

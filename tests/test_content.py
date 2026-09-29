@@ -140,6 +140,27 @@ def test_plain_text_strips_headings_and_quotes():
     assert out.splitlines()[1] == "quoted"
 
 
+def test_plain_text_keeps_underscores_inside_identifiers():
+    # `re.sub(r"[*_]{1,3}", "", ...)` used to delete the underscore in
+    # snake_case identifiers, turning `load_user_profile()` into
+    # `loaduserprofile()`. Underscores only mark emphasis at a word boundary.
+    out = plain_text("Set max_tokens before calling load_user_profile().")
+    assert "load_user_profile()" in out
+    assert "max_tokens" in out
+
+
+def test_plain_text_keeps_underscores_inside_link_targets():
+    out = plain_text("See [config](docs/config_2.md) for details.")
+    assert "docs/config_2.md" in out
+
+
+def test_plain_text_still_strips_snake_case_emphasis():
+    # _word_ at a boundary is emphasis and must still go.
+    out = plain_text("This is _emphasised_ text.")
+    assert "emphasised" in out
+    assert "_" not in out
+
+
 def test_summarise_prefers_description():
     page = parse_page("/x/a.md", "a.md", "---\ndescription: Explicit.\n---\nBody text here.\n")
     assert summarise(page) == "Explicit."
