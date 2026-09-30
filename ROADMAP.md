@@ -50,6 +50,13 @@ readable to an AI engine, or more honest about who is reading it.**
 
 ## Tick log
 
+- **2026-10-18** — Bug fix, no new flags. A group that names a crawler and then
+  states no rules was read as though no group named it, so
+  `User-agent: *` + `Disallow: /` + `User-agent: GPTBot` — the ordinary way to
+  opt one crawler in — reported GPTBot as blocked and advised the author to
+  relax a wildcard they had already correctly overridden. `pawprint policy`
+  was making a false claim about who can read the site, in the direction that
+  hides an open door. Found by reading `verdict`.
 - **2026-10-17** — Bug fix, no new flags. An ATX heading may be closed by its
   own run of hashes, and that closing sequence was being read as part of the
   title, so `# Setup ##` produced a page titled `Setup ##` and an index line

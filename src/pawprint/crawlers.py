@@ -128,8 +128,19 @@ def verdict(crawler: Crawler, robots: dict[str, object]) -> str:
     # robots.txt shape there is — reported every crawler as "unlisted", and
     # then advised the reader to go and add an explicit group for each one.
     # Confident, wrong, and wrong in the direction that hides a block.
-    rules = groups.get(crawler.name.lower())
-    if rules is None:
+    if crawler.name.lower() in groups:
+        rules = groups[crawler.name.lower()]
+        if not rules:
+            # A group that names the crawler and then states no rules imposes
+            # none, so the crawler is unrestricted. This is the ordinary way to
+            # opt one crawler in under a blocking wildcard. The group matches,
+            # so the wildcard's `Disallow` does not apply to it at all. Reading
+            # the empty group as "nothing here" and falling through to the
+            # wildcard reported the crawler as blocked — the opposite of what
+            # the author wrote, and advice to edit a line that was never the
+            # thing stopping the crawler.
+            return "allowed"
+    else:
         rules = groups.get("*")
     if rules is None:
         return "unlisted"
@@ -175,14 +186,20 @@ def recommendations(text: str) -> list[str]:
 
     wanted = [c.name for c in CRAWLERS if c.want_allowed and verdict(c, robots) in ("blocked", "unlisted")]
     if wanted:
-        if "*" in (robots.get("groups") or {}):
+        # Only blame the wildcard when the wildcard really is the cause: no
+        # crawler in `wanted` may have a group of its own that blocks it, or the
+        # advice is telling someone to edit a line that was never in the way.
+        groups = robots.get("groups") or {}
+        self_blocked = [n for n in wanted if groups.get(n.lower())]
+        by_wildcard = [n for n in wanted if n not in self_blocked]
+        if by_wildcard and "*" in groups:
             # The block is the wildcard, not a missing group. Telling someone
             # to go and add a `User-agent: GPTBot` group they already have
             # covered by `*` reads as busywork; the honest advice is to edit
             # the one line that is doing the blocking.
             out.append(
                 "A wildcard `User-agent: *` group is closed to citation crawlers, so these "
-                "cannot read you: " + ", ".join(wanted) + ". Relax the wildcard's `Disallow`, "
+                "cannot read you: " + ", ".join(by_wildcard) + ". Relax the wildcard's `Disallow`, "
                 "or add an `Allow: /` group for the ones you want cited."
             )
         else:

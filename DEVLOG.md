@@ -1,5 +1,56 @@
 # Devlog
 
+## 2026-10-18 — an empty group was read as no group at all
+
+### What changed
+
+A robots.txt that opts one crawler in under a blocking wildcard is written
+with an empty group:
+
+```
+User-agent: *
+Disallow: /
+
+User-agent: GPTBot
+```
+
+Under RFC 9309 that group matches GPTBot, and a group that states no rules
+imposes none, so GPTBot is free to read the whole site. Pawprint stored the
+group as an empty rule list, found no rules in it, and fell through to the
+wildcard. The table said:
+
+```
+GPTBot   blocked   You probably want this one reading you.
+```
+
+The author had written the exact file that opens the door, and Pawprint
+reported it shut.
+
+### Why it matters
+
+`pawprint policy` makes a claim about who can read a site, and this claim was
+false in the direction that hides a block. The recommendations were worse than
+the verdict, because they told the author to go and relax the wildcard
+`Disallow` — a line that was never what was stopping the crawler, and one the
+author had already correctly overridden.
+
+### How it is fixed
+
+`verdict` now distinguishes "no group names this crawler" from "a group names
+it and states no rules", and reads the second case as unrestricted rather than
+falling through to the wildcard.
+
+The same conflation was in the recommendations, which blamed the wildcard for
+any blocked citation crawler whenever a wildcard group existed at all. They
+now only blame the wildcard for crawlers that have no group of their own, so
+a site that deliberately wrote `User-agent: GPTBot` / `Disallow: /` is told
+what it actually did rather than being sent to edit the wrong line.
+
+### Tests
+
+160, all passing: 153 before this change, plus 7 new ones covering the
+empty-group verdict and the attribution of the block.
+
 ## 2026-10-17 — a heading's closing hashes were part of its title
 
 ### What changed
