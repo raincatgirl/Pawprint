@@ -65,6 +65,22 @@ def test_parse_page_falls_back_to_h1():
     assert page.title == "Heading Here"
 
 
+def test_parse_page_ignores_hash_inside_a_fenced_code_block():
+    text = (
+        "Run this:\n\n"
+        "```bash\n"
+        "# Install the package\n"
+        "pip install pawprint\n"
+        "```\n"
+    )
+    assert parse_page("/x/install.md", "install.md", text).title == "install"
+
+
+def test_parse_page_ignores_hash_inside_a_tilde_fence():
+    text = "~~~\n# not a heading\n~~~\n"
+    assert parse_page("/x/a.md", "a.md", text).title == "a"
+
+
 def test_parse_page_falls_back_to_stem():
     page = parse_page("/x/my_page.md", "my_page.md", "just text, no heading\n")
     assert page.title == "my page"

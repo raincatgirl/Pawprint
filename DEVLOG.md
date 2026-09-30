@@ -1,5 +1,46 @@
 # Devlog
 
+## 2026-10-15 — a shell comment inside a code fence was naming the page
+
+### What changed
+
+`parse_page` found a page's fallback title with `_H1_RE.search(body)`, a
+multiline regex looking for `^# `. Regexes do not know about code fences, so
+the search read straight through them. On a documentation site, where the
+first thing a page contains is very often a shell transcript, the first
+matching line was a comment:
+
+````
+```bash
+# Install the package
+pip install acme
+```
+````
+
+The page was titled "Install the package". In the generated `llms.txt` the
+entry read `- [Install the package](/docs/install): Install the CLI first...`,
+and since the title is also the site name when a page sorts first and the
+anchor text an agent follows, the whole map was quietly wrong.
+
+Replaced the regex with `_first_h1`, which scans line by line and tracks
+fence state. A fence opens on a run of three or more backticks or tildes
+(with an optional info string) and closes on a line of at least as many of
+the same character. Inside a fence no line is a heading, no matter what it
+starts with.
+
+### Why not just regex the fences away
+
+Stripping fences before the heading search would also delete them from
+`body`, which is what `llms-full.txt` renders and what the audit's word
+count reads. The scan is local to title detection and touches nothing else.
+
+Two tests: a backtick fence with a `bash` info string, and a bare tilde
+fence. The first version of the fix passed the tilde test and failed the
+backtick one, because it required the whole stripped line to be fence
+characters and ` ```bash ` is not. The info string is what makes a fence
+worth parsing, so the opener now matches on the leading run.
+
+
 ## 2026-10-14 — the wildcard group was ignored, and a blank `Disallow:` read as a block
 
 ### What changed

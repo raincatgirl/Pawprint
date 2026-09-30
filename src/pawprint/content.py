@@ -161,14 +161,44 @@ def _parse_meta_block(lines: list[str]) -> dict[str, object]:
     return meta
 
 
+def _first_h1(body: str) -> str | None:
+    """First ATX H1 outside any fenced code block.
+
+    A shell transcript is full of ``# comment`` lines. Read naively, a page
+    whose only heading is inside a bash block gets that comment as its title,
+    and every generated entry calls the page "Install the package". CommonMark
+    opens a fenced block with three or more backticks or tildes and closes it
+    with a line of at least as many of the same character, so the fence is
+    tracked by scanning the body rather than by trusting a single regex.
+    """
+    fence: str | None = None
+    for line in body.split("\n"):
+        stripped = line.strip()
+        if fence is not None:
+            # A closing fence is the same character repeated, nothing else.
+            if stripped and set(stripped) == {fence[0]} and len(stripped) >= len(fence):
+                fence = None
+            continue
+        # An opening fence is a run of three or more, optionally followed by an
+        # info string: ```bash is a fence, ``` alone is a fence.
+        run = stripped[: len(stripped) - len(stripped.lstrip("`~"))]
+        if len(run) >= 3 and set(run) == {run[0]}:
+            fence = run
+            continue
+        match = _H1_RE.match(line)
+        if match:
+            return match.group(1).strip()
+    return None
+
+
 def parse_page(path: str, rel_path: str, text: str) -> Page:
     """Build a :class:`Page` from raw file text."""
     meta, body = parse_front_matter(text)
 
     title = meta.get("title")
     if not isinstance(title, str) or not title:
-        h1 = _H1_RE.search(body)
-        title = h1.group(1).strip() if h1 else rel_path.rsplit("/", 1)[-1].rsplit(".", 1)[0].replace("-", " ").replace("_", " ")
+        h1 = _first_h1(body)
+        title = h1 if h1 else rel_path.rsplit("/", 1)[-1].rsplit(".", 1)[0].replace("-", " ").replace("_", " ")
 
     description = meta.get("description")
     if not isinstance(description, str):

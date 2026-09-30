@@ -50,6 +50,10 @@ readable to an AI engine, or more honest about who is reading it.**
 
 ## Tick log
 
+- **2026-10-15** — Bug fix, no new flags. The fallback H1 was found with a
+  bare regex, which read straight through fenced code blocks, so a page whose
+  first heading was a shell comment was titled after the comment and linked
+  under it in `llms.txt`. Found by reading `parse_page`.
 - **2026-10-14** — Bug fix, no new flags. `verdict` never fell back to the
   `User-agent: *` group, so the most common robots.txt shape on the web was
   read as if it named nobody: a site with `* / Disallow: /` was told every AI
