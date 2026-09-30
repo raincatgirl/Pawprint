@@ -1,5 +1,85 @@
 # Devlog
 
+## 2026-10-23 — a fence ends its block, and tildes count too
+
+### What changed
+
+`_first_prose_paragraph` split the body on blank lines: `body.split("\n\n")`.
+A fenced code block is a block in its own right, and CommonMark does not ask
+for a blank line after the closing fence — the line after it opens a new block.
+So a fence that was not followed by a blank line handed its block to the prose
+underneath, and that block's first line was a run of backticks. The skip list
+matched it, and the real prose was discarded.
+
+Two symptoms, one cause, pulling in opposite directions:
+
+- a backtick fence lost the page entirely. `# Install` over a fenced install
+  snippet over one sentence of real prose produced *no summary*, so its entry
+  in `llms.txt` was a bare link:
+
+  ```
+  - [API](/docs/api)
+  ```
+
+- a tilde fence kept the page but kept the wrong text. `~~~` was never in
+  `_SKIP_PREFIXES`, so a tilde-fenced block was read as prose and its markers
+  and contents became the summary:
+
+  ```
+  - [Install](/install): ~~~ pip install acme ~~~ Run this once before you start building anything with the SDK client.
+  ```
+
+That second one is the more damaging of the two, and it is the same
+convention gap as the first: the module has always tracked backtick fences in
+`_first_heading` and `_strip_ticks`, and never tildes. A `~~~` fence is legal
+CommonMark and is what people write when their code block itself contains
+backticks.
+
+### What was done
+
+Block splitting moved out of an inline `split("\n\n")` into `_iter_blocks`,
+which tracks the fence the same way `_first_heading` does — a run of three or
+more of one fence character opens a block, a run of the same character at least
+as long closes it and ends the block. A blank line inside a fenced block no
+longer splits it either, which it previously could.
+
+And `~~~` was added to `_SKIP_PREFIXES`, so a tilde-fenced block is skipped as
+structure rather than offered to an AI engine as a description of the page.
+
+### Why it matters
+
+The summary line is the only prose a crawler gets per page. A page whose
+prose happens to follow a code fence without an intervening blank line — the
+exact shape of an install or quickstart page, which is a common page — was
+being indexed as a bare link, or worse, indexed with its own code quoted back
+at it. Neither is a description of what the page is for.
+
+Real output, three pages, before:
+
+```
+- [Install](/install): ~~~ pip install acme ~~~ Run this once before you start building anything with the SDK client.
+- [API](/docs/api)
+```
+
+and after:
+
+```
+- [Install](/install): Run this once before you start building anything with the SDK client.
+- [API](/docs/api): The `Client` class wraps the REST endpoint and handles retries.
+```
+
+### Tests
+
+Seven, in `tests/test_fence_block_boundary.py`. Three fail against the old
+code for the reasons above; the other four pin the behaviour that was already
+right and had to stay right: the blank-line-separated case that worked, a fence
+with nothing after it still yielding nothing, a setext heading directly under a
+fence still being a heading, and indented code directly under a fence still
+being code.
+
+Suite: 204 passing, up from 197.
+
+
 ## 2026-10-22 — the depth check counted letters and called them words
 
 ### What changed

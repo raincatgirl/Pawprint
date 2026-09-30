@@ -460,7 +460,12 @@ def summarise(page: Page, limit: int = 200) -> str:
     return cut + "..."
 
 
-_SKIP_PREFIXES = ("#", "-", "*", "+", ">", "|", "```", "\t")
+# Line starts that open a block other than a paragraph, including both fence
+# characters. CommonMark allows a fenced block to be opened with `~~~` as well
+# as ``` ``` ```, and a line beginning `~~~` is a fence rather than a
+# paragraph, so leaving tildes off this list let a fenced block be read as
+# prose — the index summary of such a page came out as `~~~ pip install acme`.
+_SKIP_PREFIXES = ("#", "-", "*", "+", ">", "|", "```", "~~~", "\t")
 _INDENT_RE = re.compile(r"^ {4,}")
 
 # Line starts that open a block other than a paragraph. A setext underline can
@@ -480,6 +485,53 @@ def _is_indented_code(line: str) -> bool:
     return bool(_INDENT_RE.match(line)) or line.startswith("\t")
 
 
+def _iter_blocks(body: str) -> Iterator[list[str]]:
+    """Split markdown into blocks, on blank lines and on fence boundaries.
+
+    A fenced code block is a block in its own right, and CommonMark does not
+    require a blank line after its closing fence — the line following the fence
+    opens a fresh block. Splitting on blank lines alone glued the prose under a
+    fence onto the fence's own block, so the block opened with a run of
+    backticks and the prose underneath it was skipped as if it were more code.
+    A page that opened with an install snippet therefore produced no summary at
+    all, and its entry in ``llms.txt`` was a bare link with nothing after it.
+
+    Tracking the fence also keeps a fenced block together instead of letting a
+    blank line inside the code split it into pieces, each of which might have
+    looked like a paragraph.
+    """
+    block: list[str] = []
+    fence: str | None = None
+
+    for line in body.split("\n"):
+        stripped = line.strip()
+        run = stripped[: len(stripped) - len(stripped.lstrip("`~"))]
+        if fence is not None:
+            # A closing fence is the same character repeated and at least as
+            # long as the one that opened it. Closing it ends the block, and
+            # the next line starts a new one.
+            if stripped and set(stripped) == {fence[0]} and len(stripped) >= len(fence):
+                fence = None
+                yield block
+                block = []
+            else:
+                block.append(line)
+            continue
+        if len(run) >= 3 and set(run) == {run[0]}:
+            fence = run
+            block.append(line)
+            continue
+        if not line.strip():
+            if block:
+                yield block
+                block = []
+            continue
+        block.append(line)
+
+    if block:
+        yield block
+
+
 def _first_prose_paragraph(body: str) -> str:
     """First block that reads like a sentence rather than structure.
 
@@ -489,8 +541,8 @@ def _first_prose_paragraph(body: str) -> str:
     an ATX heading is — otherwise the summary of a setext page is its own
     title, underlined.
     """
-    for block in body.split("\n\n"):
-        lines = [line for line in block.split("\n") if line.strip()]
+    for lines in _iter_blocks(body):
+        lines = [line for line in lines if line.strip()]
         if not lines:
             continue
         heading = _heading_block(lines, 0)

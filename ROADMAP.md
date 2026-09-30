@@ -50,6 +50,17 @@ readable to an AI engine, or more honest about who is reading it.**
 
 ## Tick log
 
+- **2026-10-23** — Bug fix, no new flags. A fenced code block ends at its
+  closing fence and the next line starts a fresh block, but blocks were split
+  on blank lines alone, so prose written directly under a fence was glued onto
+  the fence's own block and skipped as code. A page that opened with an install
+  snippet produced no summary at all, and its `llms.txt` line was a bare link
+  with nothing after it. A `~~~` fence leaked the opposite way: tildes were
+  never in the list of block-opening line prefixes, so a tilde-fenced block was
+  read as prose and the index line read `~~~ pip install acme ~~~ Run this
+  once...`. Found by reading `_first_prose_paragraph`. Suite: 204 passing, up
+  from 197.
+
 - **2026-10-22** — Bug fix, no new flags. The content-depth check counted
   characters, not words: `_WORD_RE` was a single-character class applied with
   `findall`, so ordinary English prose reported at roughly four times its real
