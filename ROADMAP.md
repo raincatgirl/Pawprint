@@ -50,6 +50,18 @@ readable to an AI engine, or more honest about who is reading it.**
 
 ## Tick log
 
+- **2026-09-30** — Bug fix, no new flags. The `llms.txt` summary was emitted
+  as raw markdown source: `summarise` cut the first prose paragraph and passed
+  it through untouched, so emphasis markers, code ticks and link syntax reached
+  the index verbatim. In its worst form the entry read
+  `- [API](/docs/api): ... see [docs](https://x.test).` — a second link nested
+  inside the entry's own link text, which most renderers drop, taking the URL
+  with them. The summary now goes through the `plain_text` the audit's word
+  count already used, so the two agree on what a page says. One existing test
+  had pinned the defect (it asserted ``The `get` method``); its intent was
+  "prose under a fence is found", which still holds. Suite: 224 passing, up
+  from 216. Found by reading `summarise`.
+
 - **2026-10-24** — Bug fix, no new flags. `is_index_path` compared the filename
   to `index.md` case-sensitively while the walker collects content suffixes
   case-insensitively, so `docs/Index.md` was read into the tree and then linked

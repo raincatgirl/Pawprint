@@ -457,6 +457,17 @@ def summarise(page: Page, limit: int = 200) -> str:
     if page.description:
         return page.description
     paragraph = _first_prose_paragraph(page.body)
+    # The summary is emitted verbatim as the text of a bullet in llms.txt, so
+    # it has to be prose, not the markdown source it was cut from. The reader
+    # is an AI engine: emphasis markers and code ticks are noise, and a link
+    # left in place nests a second link inside the entry's own link text, which
+    # most renderers drop — taking the URL with them.
+    #
+    # This is the same `plain_text` the audit word count already runs over, so
+    # the two agree on what a page says. It had to run before the truncation,
+    # not after: the limit is on characters the reader actually sees, and
+    # cutting first could leave a summary ending mid-marker.
+    paragraph = plain_text(paragraph)
     paragraph = " ".join(paragraph.split())
     if not paragraph:
         return ""

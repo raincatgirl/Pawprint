@@ -28,9 +28,14 @@ def test_prose_after_backtick_fence_without_blank_line_is_found():
 
 
 def test_prose_after_fence_with_info_string_without_blank_line_is_found():
+    # The point of this test is that the prose under the fence is found at
+    # all, not that it comes back verbatim. It originally asserted the raw
+    # ``The `get` method...``, which pinned the markdown source into a field
+    # that is emitted verbatim into llms.txt; see
+    # tests/test_summary_plain_text.py for that defect.
     body = "# Usage\n\n```python\nprint(1)\n```\nThe `get` method takes one argument.\n"
     page = parse_page("/x/a.md", "a.md", body)
-    assert summarise(page) == "The `get` method takes one argument."
+    assert summarise(page) == "The get method takes one argument."
 
 
 def test_tilde_fence_does_not_leak_markers_into_the_summary():

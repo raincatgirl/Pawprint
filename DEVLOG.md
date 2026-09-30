@@ -1,5 +1,108 @@
 # Devlog
 
+## 2026-09-30 — a summary is prose, not the markdown it was cut from
+
+### What changed
+
+`summarise` found the first real prose paragraph of a page and returned it as
+it stood in the source. That paragraph is then emitted verbatim as the text of
+a bullet in `llms.txt`:
+
+```
+- [API](/docs/api): The endpoint is `https://api.acme.test/v1` — see [docs](https://x.test).
+```
+
+Three separate things are wrong with that line, and they compound.
+
+The obvious one is that the index is quoting its own markup. Backticks,
+asterisks and image syntax are decoration, and the file's only reader is an AI
+engine that has to decide what the page is about.
+
+The serious one is the link. The entry's own link is `[API](/docs/api)`, and
+the summary contains a second `[docs](https://x.test)`. Two link spans on one
+line: most Markdown renderers resolve the first and discard the rest of the
+line as a link target, so the URL the page depends on is not merely ugly, it
+disappears. The `llms.txt` spec's entire reason for existing is that a reader
+can find pages without guessing at URLs.
+
+The third is that this was avoidable. The module already has `plain_text`,
+written for the audit's word count, and the audit runs the whole body of every
+page through it. So the audit knew a page contained `The get method takes one
+argument` — four words, correctly — while the index shipped it as
+`` The `get` method ``. Two readers of the same file, disagreeing about what
+the text says.
+
+### What was done
+
+One call. `summarise` now runs the paragraph through `plain_text` before
+collapsing whitespace and truncating, which puts it on the same footing as the
+word count and nothing else changes.
+
+The ordering matters and is load-bearing. The truncation limit is on
+characters the reader actually sees, so the strip has to happen first: cutting
+at 160 characters of markdown source and stripping afterwards would let a
+summary end mid-marker, in a file whose whole job is being parsed correctly by
+something else. There is a test for that case specifically.
+
+`plain_text` keeps link targets — `[text](url)` becomes `text (url)` — so no
+information is lost, only the syntax. Its dunder guard from 2026-10-11 means
+`__init__` and `load_user_profile()` still survive, and the new tests assert
+that, because the whole point of routing through a shared function is that the
+guard is now shared.
+
+Front-matter `description` is still returned verbatim. It is author-written
+prose, not something cut out of a body, and it was never decorated to begin
+with.
+
+### One test that was pinning the bug
+
+`tests/test_fence_block_boundary.py::test_prose_after_fence_with_info_string_without_blank_line_is_found`
+asserted:
+
+```python
+assert summarise(page) == "The `get` method takes one argument."
+```
+
+That is the defect, written down as an expectation. The test's actual subject
+is the fence boundary — whether prose directly under a closing fence is found
+at all, which was the 2026-10-23 bug — and it still passes with the plain-text
+assertion. The change is annotated so the next reader knows the assertion moved
+deliberately, and why, instead of wondering if the fix was papered over.
+
+### Not in this tick
+
+Two related things were found while verifying and deliberately left:
+
+- A paragraph opening with `**bold**` is skipped entirely, because `**` is a
+  list marker in `_SKIP_PREFIXES` and a run of `*` followed by non-space is
+  not a bullet in CommonMark. It is a real bug, and it is a different one.
+- A page whose first paragraph is a bare lead-in like `Run this:` still
+  produces a description of `Run this:`, because the sentence that explains it
+  is the next block. Whether a colon-terminated fragment counts as a summary
+  is a judgement call, not a crash; it is noted here and left alone.
+
+Both want their own tick and their own tests. One unit of work per tick is
+the rule for a reason.
+
+### Verification
+
+`224 passed`, up from 216. Real output on a four-page fixture, before and
+after:
+
+```
+- [API](/docs/api): The endpoint is `https://api.acme.test/v1` — see [docs](https://x.test).
+- [API](/docs/api): The endpoint is https://api.acme.test/v1 — see docs (https://x.test).
+```
+
+`build --check` on the rebuilt fixture exits 0. `audit` and `policy` are
+unchanged. Running Pawprint against its own repository, the Devlog entry above
+summarises as its opening sentence, with the `##` and the backticked function
+name gone:
+
+```
+- [Devlog](/DEVLOG): summarise found the first real prose paragraph of a page and returned it as it stood in the source. That paragraph is then emitted verbatim as the text of a...
+```
+
 ## 2026-10-24 — a capitalised `Index.md` is still a landing page
 
 ### What changed
