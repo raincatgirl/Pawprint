@@ -223,7 +223,10 @@ def _heading_block(lines: list[str], start: int) -> list[str] | None:
         if index > start and _is_setext_underline(line):
             break
         if index > start and (
-            _is_indented_code(line) or line.lstrip().startswith(_BLOCK_PREFIXES)
+            _is_indented_code(line)
+            or is_atx_heading(line)
+            or _BULLET_RE.match(line)
+            or line.lstrip().startswith(_BLOCK_PREFIXES)
         ):
             break
         content.append(line)
@@ -231,7 +234,12 @@ def _heading_block(lines: list[str], start: int) -> list[str] | None:
     if not content:
         return None
     first = content[0]
-    if _is_indented_code(first) or first.lstrip().startswith(_BLOCK_PREFIXES):
+    if (
+        _is_indented_code(first)
+        or is_atx_heading(first)
+        or _BULLET_RE.match(first)
+        or first.lstrip().startswith(_BLOCK_PREFIXES)
+    ):
         return None
     if index >= len(lines) or not _is_setext_underline(lines[index]):
         return None
@@ -484,14 +492,20 @@ def summarise(page: Page, limit: int = 200) -> str:
 # as ``` ``` ```, and a line beginning `~~~` is a fence rather than a
 # paragraph, so leaving tildes off this list let a fenced block be read as
 # prose — the index summary of such a page came out as `~~~ pip install acme`.
-_SKIP_PREFIXES = ("#", "-", "*", "+", ">", "|", "```", "~~~", "\t")
 _INDENT_RE = re.compile(r"^ {4,}")
 
-# Line starts that open a block other than a paragraph. A setext underline can
-# only follow a paragraph, so a line starting with one of these is not heading
-# content however it is underlined. Shared by the heading reader and the
-# summary reader so both agree on what counts as structure.
-_BLOCK_PREFIXES = ("#", ">", "|", "```", "- ", "* ", "+ ")
+# A list bullet is a marker, whitespace, then the item. The whitespace is what
+# separates `- item` from `--verbose`, and without it the summary reader wrote
+# off any page whose prose opened with a leading hyphen, a plus, a hash, or an
+# emphasis run as if it were a list or a heading. CommonMark allows an empty
+# list item too (`-` alone), so end-of-line counts as the separator.
+_BULLET_RE = re.compile(r"^ {0,3}[-*+]([ \t]|$)")
+
+# Line starts that open a block other than a paragraph, as raw prefixes, for
+# the cases where no separator is involved. A setext underline can only follow
+# a paragraph, so a line starting with one of these is not heading content
+# however it is underlined.
+_BLOCK_PREFIXES = (">", "|", "```", "~~~")
 
 
 def _is_indented_code(line: str) -> bool:
@@ -502,6 +516,21 @@ def _is_indented_code(line: str) -> bool:
     whitespace first would destroy the very indent being looked for.
     """
     return bool(_INDENT_RE.match(line)) or line.startswith("\t")
+
+
+def _is_structure(line: str) -> bool:
+    """True when a line opens a block that is not a paragraph.
+
+    The list markers need the whitespace that makes a bullet a bullet, and the
+    ATX heading needs the same, so neither can be answered by a bare prefix
+    test. ``is_atx_heading`` is the same predicate the title reader uses, so
+    the two agree on what a heading is.
+    """
+    if _is_indented_code(line) or is_atx_heading(line):
+        return True
+    if _BULLET_RE.match(line):
+        return True
+    return line.lstrip().startswith(_BLOCK_PREFIXES)
 
 
 def _iter_blocks(body: str) -> Iterator[list[str]]:
@@ -572,7 +601,7 @@ def _first_prose_paragraph(body: str) -> str:
             if not rest:
                 continue
             return " ".join(line.strip() for line in rest)
-        if _is_indented_code(lines[0]) or lines[0].lstrip().startswith(_SKIP_PREFIXES):
+        if _is_structure(lines[0]):
             continue
         return " ".join(line.strip() for line in lines)
     return ""

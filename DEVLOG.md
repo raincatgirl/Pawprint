@@ -1,5 +1,55 @@
 # Devlog
 
+## 2026-09-30 — a paragraph that opens with a dash is still a paragraph
+
+### What changed
+
+`_first_prose_paragraph` decided what was prose by testing a block's first
+line against a flat tuple of single characters: `"#", "-", "*", "+", ">",
+"|", "```", "~~~", "\t"`. Any of those at the start of a line and the block was
+written off as structure.
+
+CommonMark does not work that way. A list bullet is a marker, *whitespace*,
+then the item; an ATX heading is hashes, *whitespace*, then the text. So
+`- item` is a bullet and `--verbose` is a word, `# Heading` is a heading and
+`#1 in a series` is a sentence. Pawprint could not tell those apart, so any
+page whose prose opened with a leading hyphen, a plus, a hash, or an emphasis
+run was read as having no summary at all.
+
+That is a large class of ordinary pages. Opening a sentence with
+`**Note**:` is unremarkable, and a page that begins `#1 in a series …` is a
+page. Every one of them got a bare link in `llms.txt` — `- [flags](/docs/flags)`
+with nothing after it — which is the entry an AI engine has to judge the page
+by. Nothing was wrong with the content; the reader was.
+
+### Why it is a real bug and not a preference
+
+The summary reader and the heading reader in the same module had drifted
+apart. `_heading_block` used a second constant, `_BLOCK_PREFIXES`, which
+spelled the list markers as `"- "`, `"* "`, `"+ "` — with the space. That
+version was already right, and the prose reader was the one still using bare
+characters. This pins them to the same rule.
+
+### How it was fixed
+
+One predicate, `_is_structure`, now answers the question for both readers, and
+both the list markers and the ATX hashes go through a regex that requires the
+whitespace. `is_atx_heading` — already written for the title reader, already
+careful about `# C#` and seven hashes — is reused rather than reimplemented,
+so the title and the summary cannot drift on what a heading is.
+
+The whitespace requirement also handles the empty list item CommonMark allows
+(`-` alone on a line), where end-of-line stands in for the space.
+
+### What did not change
+
+`__init__` is still preserved rather than stripped to `init`. A dunder and a
+strong-emphasis run are indistinguishable by the letter of the spec, and the
+existing trade — preserve the identifier, miss a decoration — is unchanged.
+A page opening with `__init__ sets up the object.` now *finds* that
+paragraph; it does not strip the dunder. The test says so explicitly, so the
+distinction cannot be quietly collapsed later.
+
 ## 2026-09-30 — a summary is prose, not the markdown it was cut from
 
 ### What changed

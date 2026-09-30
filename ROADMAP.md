@@ -122,6 +122,14 @@ readable to an AI engine, or more honest about who is reading it.**
   H1 and only the ATX `# ` one was read. A page written as `Getting Started`
   over a `===============` underline was titled after its filename, and its
   index summary was the literal underline. Found by reading `_first_h1`.
+- **2026-10-16** — Bug fix, no new flags. The summary reader wrote off any
+  paragraph that opened with `#`, `-`, `*` or `+`, because it tested bare
+  characters where CommonMark requires a marker *and* whitespace. A page
+  starting `**Note**: the deploy key lives in ~/.acme.` produced no summary
+  at all, so its entry in `llms.txt` was a bare link — the one line an AI
+  engine has to judge the page by. The heading reader in the same module
+  already had this right and spelled the markers `"- "`, `"* "`, `"+ "`. Found
+  by reading `_first_prose_paragraph`.
 - **2026-10-15** — Bug fix, no new flags. The fallback H1 was found with a
   bare regex, which read straight through fenced code blocks, so a page whose
   first heading was a shell comment was titled after the comment and linked
