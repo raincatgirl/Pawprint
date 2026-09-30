@@ -50,6 +50,12 @@ readable to an AI engine, or more honest about who is reading it.**
 
 ## Tick log
 
+- **2026-10-14** — Bug fix, no new flags. `verdict` never fell back to the
+  `User-agent: *` group, so the most common robots.txt shape on the web was
+  read as if it named nobody: a site with `* / Disallow: /` was told every AI
+  crawler was merely "unlisted" and that the fix was to add a group for each
+  one. A blank `Disallow:` was also stored as a block of the whole site, when
+  RFC 9309 reads it as an allow. Found by reading `verdict`.
 - **2026-10-13** — Bug fix, no new flags. `parse_robots` never closed a
   group, so every rule in the file after the first `User-agent:` line was
   applied to every agent named in it. A robots.txt that blocked GPTBot and

@@ -103,8 +103,14 @@ def parse_robots(text: str) -> dict[str, object]:
                 for name in current:
                     groups[name].append((True, allow.group(1)))
             elif disallow:
+                # `Disallow:` with an empty value disallows nothing. It is
+                # how a site says "read everything", and recording it as the
+                # block `(False, "")` made the empty prefix look like a
+                # block of the whole site, so the most permissive file on
+                # the web read as the most restrictive one.
+                value = disallow.group(1)
                 for name in current:
-                    groups[name].append((False, disallow.group(1)))
+                    groups[name].append((False, value) if value else (True, "/"))
             sealed = True
 
     named = {name.lower() for name in groups}
@@ -115,7 +121,16 @@ def parse_robots(text: str) -> dict[str, object]:
 def verdict(crawler: Crawler, robots: dict[str, object]) -> str:
     """One of ``allowed``, ``blocked``, ``unlisted``, or ``partial``."""
     groups = robots.get("groups") or {}
+    # A named group wins over the wildcard: RFC 9309 says a crawler matches
+    # the most specific group that names it, and falls back to `*` only when
+    # no group names it. Without this fallback, `User-agent: *` + `Disallow: /`
+    # — the canonical "keep AI crawlers out" file, and the most common
+    # robots.txt shape there is — reported every crawler as "unlisted", and
+    # then advised the reader to go and add an explicit group for each one.
+    # Confident, wrong, and wrong in the direction that hides a block.
     rules = groups.get(crawler.name.lower())
+    if rules is None:
+        rules = groups.get("*")
     if rules is None:
         return "unlisted"
     allows = [path for is_allow, path in rules if is_allow]
@@ -160,10 +175,21 @@ def recommendations(text: str) -> list[str]:
 
     wanted = [c.name for c in CRAWLERS if c.want_allowed and verdict(c, robots) in ("blocked", "unlisted")]
     if wanted:
-        out.append(
-            "Not reading you (blocked or unlisted): " + ", ".join(wanted) + ". "
-            "Add an explicit `User-agent:` group for each if you want to be cited."
-        )
+        if "*" in (robots.get("groups") or {}):
+            # The block is the wildcard, not a missing group. Telling someone
+            # to go and add a `User-agent: GPTBot` group they already have
+            # covered by `*` reads as busywork; the honest advice is to edit
+            # the one line that is doing the blocking.
+            out.append(
+                "A wildcard `User-agent: *` group is closed to citation crawlers, so these "
+                "cannot read you: " + ", ".join(wanted) + ". Relax the wildcard's `Disallow`, "
+                "or add an `Allow: /` group for the ones you want cited."
+            )
+        else:
+            out.append(
+                "Not reading you (blocked or unlisted): " + ", ".join(wanted) + ". "
+                "Add an explicit `User-agent:` group for each if you want to be cited."
+            )
     else:
         out.append("All citation-relevant crawlers are allowed — good.")
 

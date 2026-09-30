@@ -1,5 +1,60 @@
 # Devlog
 
+## 2026-10-14 — the wildcard group was ignored, and a blank `Disallow:` read as a block
+
+### What changed
+
+`verdict` looked a crawler up by its own name and, finding nothing, returned
+`unlisted`. It never fell back to the `User-agent: *` group. Since a wildcard
+group is the most common robots.txt shape there is, this was not an edge case:
+
+```
+User-agent: *
+Disallow: /
+```
+
+reported GPTBot, ClaudeBot, PerplexityBot and the rest as `unlisted`, and then
+recommended the reader "Add an explicit `User-agent:` group for each if you
+want to be cited" — sending them to write fourteen groups that a single line
+already covered. The site was shut to every AI crawler and Pawprint said the
+opposite.
+
+The same fallback fixes the mirror image. A site that is wide open:
+
+```
+User-agent: *
+Allow: /
+```
+
+read as `unlisted` too, so `pawprint policy` reported a perfectly readable site
+as one no crawler had been invited to, and told the reader to go open it.
+
+Separately, `Disallow:` with an empty value was stored as the block `(False,
+"")`. RFC 9309 reads an empty value as *disallow nothing* — it is how a site
+says "read everything" — and `verdict` treats `""` as a prefix matching the
+whole site. The most permissive file on the web was being read as the most
+restrictive one. Empty values now record as an allow of `/`.
+
+`verdict` now resolves a crawler against its own group first and the wildcard
+only as a fallback, which is the specificity rule RFC 9309 describes. The
+recommendation text follows: when a wildcard is what is blocking, the advice is
+to relax that one line rather than to go add groups per crawler.
+
+### Why
+
+Both halves are the same class of fault as the group-parsing bug fixed
+yesterday, and the same failure mode: `pawprint policy` states its findings as
+fact, and in both cases the fact was false in the direction that misleads. A
+crawler-policy tool that cannot read a wildcard group is wrong about the
+majority of the robots.txt files it will be pointed at.
+
+One existing test changed rather than being preserved:
+`test_verdict_unlisted` asserted that `User-agent: * / Allow: /` yields
+`unlisted`, which is the bug stated as a requirement. It now uses a file with
+no applicable group at all, which is what "unlisted" should mean.
+
+Tests: 113 to 123, in a new `tests/test_robots_wildcard.py`.
+
 ## 2026-10-13 — `parse_robots` never closed a group
 
 ### What changed

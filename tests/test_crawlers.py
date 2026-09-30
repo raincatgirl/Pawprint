@@ -89,8 +89,14 @@ def test_verdict_blocked():
 
 
 def test_verdict_unlisted():
+    # "Unlisted" now means what it should: no group names this crawler and
+    # there is no wildcard to fall back on. A `User-agent: *` group *is* a
+    # verdict for every crawler, so it can no longer produce "unlisted" —
+    # it used to, which told a site with a blank `Disallow: *` that its
+    # visitors were shut out when they were wide open.
     c = next(x for x in CRAWLERS if x.name == "GPTBot")
-    assert verdict(c, parse_robots("User-agent: *\nAllow: /\n")) == "unlisted"
+    assert verdict(c, parse_robots("Sitemap: https://x/s.xml\n")) == "unlisted"
+    assert verdict(c, parse_robots("User-agent: SomeOtherBot\nDisallow: /\n")) == "unlisted"
 
 
 def test_verdict_partial_for_narrow_blocks():
