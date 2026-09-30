@@ -68,13 +68,21 @@ def is_atx_heading(line: str) -> bool:
 
 # Any `index` with a content suffix is a landing page, not a page called
 # "index". Hardcoding `.md` here meant `index.markdown` — which the walker
-# happily collects — was linked at `/index` and never named the site.
+# happily collects — was linked at `/index` and never named the site. The
+# comparison is case-insensitive because the walker is: it collects by
+# `str.lower().endswith(CONTENT_SUFFIXES)`, so `Index.md` is content. Left
+# here case-sensitive, the two halves disagreed — a capitalised index was
+# read into the tree and then treated as an ordinary page, so it was linked
+# at `/Index` instead of `/` and never named the site. On a real site that
+# URL 404s, because a generator serving `docs/index.md` serves `/docs/`.
+# The rule stays exact on the whole filename, so `Indexing.md` is still a
+# page called "Indexing".
 _INDEX_STEMS = tuple(f"index{suffix}" for suffix in CONTENT_SUFFIXES)
 
 
 def is_index_path(rel_path: str) -> bool:
     """True when a relative path names a directory or site landing page."""
-    return rel_path.rsplit("/", 1)[-1] in _INDEX_STEMS
+    return rel_path.rsplit("/", 1)[-1].lower() in _INDEX_STEMS
 
 
 @dataclass(frozen=True)

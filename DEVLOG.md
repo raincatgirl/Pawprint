@@ -1,5 +1,39 @@
 # Devlog
 
+## 2026-10-24 — a capitalised `Index.md` is still a landing page
+
+### What changed
+
+`is_index_path` compared the filename against `_INDEX_STEMS` — `index.md`,
+`index.markdown` — verbatim. The walker that collects files a few lines above
+compares with `str.lower().endswith(CONTENT_SUFFIXES)`. Those two halves of the
+module disagreed about case, and the disagreement produced broken URLs.
+
+On a site with `docs/Index.md`, the file was collected (the walker is
+case-insensitive) and then treated as an ordinary page (the rule was not), so
+`llms.txt` linked it at `/docs/Index`. A static generator serving `docs/index.md`
+serves it at `/docs/`. That URL 404s, and it is the one URL in the file an agent
+is most likely to follow first.
+
+At the root it was worse. `site_name` takes the site's name from the landing
+page, so a site whose homepage was `Index.md` got named after whichever root
+page sorted first:
+
+```
+- [Acme Docs](/Index): The real homepage for the Acme product docs.
+```
+
+### What was done
+
+The comparison became `rel_path.rsplit("/", 1)[-1].lower() in _INDEX_STEMS`.
+It stays an exact match on the whole filename, not a prefix, so `Indexing.md`
+is still a page called "Indexing" — case is the axis that should be free, and
+the rest of the name is not. Nothing else changed; the walker already did the
+right thing.
+
+This is the other half of the `index.markdown` fix from 2026-10-10, which
+widened the suffix list but left the case axis open.
+
 ## 2026-10-23 — a fence ends its block, and tildes count too
 
 ### What changed

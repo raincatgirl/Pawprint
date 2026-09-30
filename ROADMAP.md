@@ -50,6 +50,12 @@ readable to an AI engine, or more honest about who is reading it.**
 
 ## Tick log
 
+- **2026-10-24** — Bug fix, no new flags. `is_index_path` compared the filename
+  to `index.md` case-sensitively while the walker collects content suffixes
+  case-insensitively, so `docs/Index.md` was read into the tree and then linked
+  at `/docs/Index` — a URL that 404s on a real static site — and a site whose
+  homepage was `Index.md` was named after a sibling page. Found by reading
+  `is_index_path` against `_walk`.
 - **2026-10-23** — Bug fix, no new flags. A fenced code block ends at its
   closing fence and the next line starts a fresh block, but blocks were split
   on blank lines alone, so prose written directly under a fence was glued onto
