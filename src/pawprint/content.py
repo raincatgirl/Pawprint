@@ -40,6 +40,10 @@ SKIP_DIRS = frozenset(
 )
 
 _FM_DELIM = "---"
+# U+FEFF, kept as a character rather than written as an escape so the constant
+# reads as what it is. `encoding="utf-8"` does not strip it, so it is the first
+# character of every BOM-prefixed file.
+_BOM = "﻿"
 _TITLE_RE = re.compile(r"^title\s*:\s*(.+?)\s*$")
 _DESC_RE = re.compile(r"^description\s*:\s*(.+?)\s*$")
 _ORDER_RE = re.compile(r"^order\s*:\s*(\d+)\s*$")
@@ -141,7 +145,23 @@ def parse_front_matter(text: str) -> tuple[dict[str, object], str]:
 
     Tolerates a missing or unterminated block, in which case the whole text is
     the body and the metadata mapping is empty.
+
+    A leading U+FEFF is stripped first. Reading a file with ``encoding="utf-8"``
+    does not remove the byte-order mark, so the mark arrives as the document's
+    first character — at the exact position the opening fence has to occupy.
+    ``startswith("---")`` was then false, the metadata block was never
+    recognised, and the whole file fell into the tolerant branch: every page
+    lost its title and description, the raw YAML was written into
+    ``llms-full.txt`` as if it were prose, and the H1 of ``llms.txt`` came out
+    as the site's own front matter flattened onto one line. One invisible byte
+    per file, and the index stopped being legible.
+
+    Only one mark is removed and only from the very front. A second one, or one
+    in the middle of a document, is a zero-width no-break space that some pages
+    use deliberately.
     """
+    if text.startswith(_BOM):
+        text = text[1:]
     if not text.startswith(_FM_DELIM):
         return {}, text
 

@@ -1,5 +1,54 @@
 # Devlog
 
+## 2026-10-25 — a byte-order mark is not content
+
+### What changed
+
+`parse_front_matter` opened with `if not text.startswith("---")`. Reading a
+file with `encoding="utf-8"` does not remove a UTF-8 byte-order mark — only
+`utf-8-sig` does — so the mark arrives as the document's first character,
+U+FEFF, at the exact position the opening fence has to occupy. The test was
+false, the metadata block was never recognised, and the whole file fell into
+the tolerant "no front matter here" branch.
+
+One invisible byte at the top of a file, and the page lost everything the front
+matter said. A three-page site, every file written by an editor that emits a
+BOM, produced this `llms.txt`:
+
+```
+# ﻿--- title: Acme Docs description: The real description of the site.
+
+- [﻿--- title: Acme Docs description: The real description of the site.](/): Acme is a widget service for teams.
+```
+
+and this audit:
+
+```
+  [FAIL] page descriptions   0/3 pages have one — add `description:` to front matter
+```
+
+The H1 that names the site to an AI engine was the site's own front matter
+flattened onto one line. Every page entry was a link whose text was a YAML
+dump. The raw `title:`/`description:`/`order:` lines were written into
+`llms-full.txt` as if they were prose, so the full-text file a model reads
+started with three copies of the same metadata block. And check 5 told the
+author to add descriptions they had already written, on all three pages.
+
+The fix strips one leading U+FEFF before the fence is looked for, in
+`parse_front_matter` rather than in the file reader, because `parse_page` is
+public — a caller that reads a file itself must get the same answer as
+`collect`. Only the mark at the very front and only one of them: a second one,
+or one mid-document, is a zero-width no-break space that some pages use on
+purpose, so those stay in the body. A second mark therefore also keeps the
+fence from being front matter, which is the right answer — read the file as
+prose rather than guess that the first `---` was a fence.
+
+Suite: 248 passing, up from 224. Twelve tests, covering the metadata, the
+title and description, the generated index and full text, the audit path, the
+single-mark and mid-document cases, and a file that is nothing but a mark.
+Found by reading `parse_front_matter` after probing the front-matter fence
+with hand-built inputs.
+
 ## 2026-09-30 — a paragraph that opens with a dash is still a paragraph
 
 ### What changed

@@ -50,6 +50,17 @@ readable to an AI engine, or more honest about who is reading it.**
 
 ## Tick log
 
+- **2026-10-25** — Bug fix, no new flags. A UTF-8 byte-order mark is not
+  removed by `encoding="utf-8"`, so it arrived as the document's first
+  character, at the exact position `parse_front_matter`'s `startswith("---")`
+  needed to be true. The metadata block was never recognised and the file fell
+  into the "no front matter" branch, so every page lost its title and
+  description, the raw YAML was written into `llms-full.txt` as prose, the H1
+  of `llms.txt` was the site's own front matter flattened onto one line, and
+  the audit told the author to add descriptions they had already written. One
+  leading mark is now stripped before the fence is looked for. Suite: 248
+  passing, up from 224. Found by reading `parse_front_matter`.
+
 - **2026-09-30** — Bug fix, no new flags. The `llms.txt` summary was emitted
   as raw markdown source: `summarise` cut the first prose paragraph and passed
   it through untouched, so emphasis markers, code ticks and link syntax reached
