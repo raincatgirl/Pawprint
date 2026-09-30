@@ -1,5 +1,84 @@
 # Devlog
 
+## 2026-10-19 — the same empty-group rule, missed for the wildcard
+
+### What changed
+
+Last tick taught Pawprint that a group which names a crawler and then states
+no rules imposes none. The rule was written into the branch that handles a
+*cited* group, so it applied to `User-agent: GPTBot` and never to
+`User-agent: *`. A crawler that fell through to the wildcard took a different
+path, found an empty rule list, and was reported `unlisted`.
+
+A robots.txt consisting of nothing but:
+
+```
+User-agent: *
+```
+
+is a group, and an empty group. RFC 9309 reads it the same way last tick read
+the named one: no rules, so nothing is disallowed. Before the fix:
+
+```
+GPTBot   unlisted   You probably want this one reading you.
+```
+
+and the recommendation was:
+
+```
+A wildcard `User-agent: *` group is closed to citation crawlers, so these
+cannot read you: GPTBot, OAI-SearchBot, ChatGPT-User, ClaudeBot, Claude-User,
+Claude-SearchBot, PerplexityBot. Relax the wildcard's `Disallow`, or add an
+`Allow: /` group for the ones you want cited.
+```
+
+There is no `Disallow` in that file.
+
+### Why it matters
+
+Same failure mode as yesterday, still live, and the same direction: Pawprint
+reports an open site as closed and tells the author to edit a restriction they
+never wrote. It is worse here because `User-agent: *` with nothing under it is
+a thing people write while they are still deciding, so the file that produces
+the false claim is also the one most likely to be read as a placeholder
+rather than a policy.
+
+The half-fix was a real hazard too. A reader who saw yesterday's entry would
+reasonably conclude the empty-group case was covered.
+
+### How it is fixed
+
+The empty-group check moved out of the named branch and down to where the
+group has already been selected, so it applies to whichever group matched.
+Selection is unchanged: a named group still wins over the wildcard, and a
+crawler no group names is still `unlisted`. A file with only a `Sitemap:`
+line still names no group and is still unlisted — the distinction that test
+pins is "a group exists and is empty" against "no group exists".
+
+Eight tests in `tests/test_robots_empty_wildcard.py`, including that the
+training-crawler warning still fires, since nothing blocked is also nothing
+protected.
+
+### A second bug, found and deliberately not fixed here
+
+While writing the tests I hit a case that parses wrong and is not part of this
+change: `parse_robots` does not close a group at a blank line when a group
+that *did* state rules is followed by a new one. This input:
+
+```
+User-agent: *
+
+User-agent: GPTBot
+Disallow: /
+```
+
+parses the wildcard as `[(False, '/')]` — the GPTBot rule leaks backwards into
+it — so ClaudeBot reads as `blocked` when the file disallows nothing for it.
+It predates this tick and is independent of the empty-group rule. I reworked
+the test that had caught it so this tick ships one fix, not two, and left the
+behaviour as it is.
+
+
 ## 2026-10-18 — an empty group was read as no group at all
 
 ### What changed

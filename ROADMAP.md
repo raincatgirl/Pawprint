@@ -50,6 +50,12 @@ readable to an AI engine, or more honest about who is reading it.**
 
 ## Tick log
 
+- **2026-10-19** — Bug fix, no new flags. The empty-group rule from the
+  previous tick was written into the named-agent branch and so never applied
+  to the wildcard. A robots.txt that says only `User-agent: *` was reported
+  as `unlisted`, and the recommendations claimed the wildcard "is closed to
+  citation crawlers" and advised relaxing a `Disallow` that was not in the
+  file. Found by reading `verdict`.
 - **2026-10-18** — Bug fix, no new flags. A group that names a crawler and then
   states no rules was read as though no group named it, so
   `User-agent: *` + `Disallow: /` + `User-agent: GPTBot` — the ordinary way to

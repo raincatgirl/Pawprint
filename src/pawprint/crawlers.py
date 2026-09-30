@@ -130,20 +130,26 @@ def verdict(crawler: Crawler, robots: dict[str, object]) -> str:
     # Confident, wrong, and wrong in the direction that hides a block.
     if crawler.name.lower() in groups:
         rules = groups[crawler.name.lower()]
-        if not rules:
-            # A group that names the crawler and then states no rules imposes
-            # none, so the crawler is unrestricted. This is the ordinary way to
-            # opt one crawler in under a blocking wildcard. The group matches,
-            # so the wildcard's `Disallow` does not apply to it at all. Reading
-            # the empty group as "nothing here" and falling through to the
-            # wildcard reported the crawler as blocked — the opposite of what
-            # the author wrote, and advice to edit a line that was never the
-            # thing stopping the crawler.
-            return "allowed"
     else:
         rules = groups.get("*")
     if rules is None:
         return "unlisted"
+    if not rules:
+        # A group that names a crawler and then states no rules imposes none,
+        # so the crawler is unrestricted. This is the ordinary way to opt one
+        # crawler in under a blocking wildcard. The group matches, so the
+        # wildcard's `Disallow` does not apply to it at all. Reading the empty
+        # group as "nothing here" and falling through to the wildcard reported
+        # the crawler as blocked — the opposite of what the author wrote, and
+        # advice to edit a line that was never the thing stopping the crawler.
+        #
+        # The same rule holds for the wildcard itself, and reading it here
+        # rather than on the named branch only was the gap. A file that says
+        # `User-agent: *` and nothing else disallows nothing: the group
+        # matched and the group is empty. Called "unlisted", the report then
+        # claimed the wildcard was closed to GPTBot and advised the author to
+        # relax a `Disallow` that was not in the file.
+        return "allowed"
     allows = [path for is_allow, path in rules if is_allow]
     blocks = [path for is_allow, path in rules if not is_allow]
     if not blocks:
