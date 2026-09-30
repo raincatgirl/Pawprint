@@ -1,5 +1,70 @@
 # Devlog
 
+## 2026-10-21 — check 2 was reading the file, not the groups
+
+### What changed
+
+`_has_ai_crawler_rule` asked whether robots.txt named an AI crawler by doing
+a substring search over the entire text:
+
+```python
+lowered = robots_text.lower()
+return any(c.name.lower() in lowered for c in CRAWLERS)
+```
+
+So the check was really asking "does this string appear anywhere in this
+file", which is not the question it is named for. Three ordinary files scored
+the full 20 points while saying nothing at all about any crawler:
+
+```
+User-agent: *
+Allow: /
+
+Sitemap: https://example.com/sitemap-gptbot.xml
+```
+
+```
+User-agent: *
+Allow: /
+# TODO: decide what to do about GPTBot
+```
+
+```
+User-agent: *
+Disallow: /ccbot-archive
+```
+
+The second one is the worst of the three, because a comment saying the author
+has not yet decided is the file least able to support a claim that a policy
+exists.
+
+The fix is to ask `parse_robots` instead, which reads groups properly and
+strips comments on the way through. A wildcard alone does not count, since
+`*` names no crawler in particular.
+
+### Why it mattered
+
+This is check 2 of five, so the difference is 20 points out of 100. The site
+in the first example went from 60/100 to 40/100, and the word "workable"
+became "patchy" — the audit is the product here, the score is just the
+summary, and this was the audit making a confident false statement about a
+site's crawler policy.
+
+Worth noting the rest of the tool already had this right. `pawprint policy`
+calls `parse_robots`, so the same robots.txt that scored 20 points on check 2
+listed every AI crawler as falling back to the wildcard. The audit and the
+policy verb disagreed about the same file, in the direction where the audit
+was more flattering. That disagreement is what made the bug worth finding: the
+correct answer was already being computed three lines away in another module,
+just not by the one place that needed it.
+
+### Tests
+
+Five new tests, three of which fail against the old code. They cover the
+comment case, the sitemap-URL case, the disallow-path case, and two positive
+directions that had to keep working: a real group named beside a placeholder
+wildcard, and lower-case directive spellings. Suite: 177 -> 182.
+
 ## 2026-10-20 — the 2026-10-19 tests, made to pass
 
 ### What changed

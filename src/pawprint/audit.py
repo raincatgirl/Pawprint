@@ -33,11 +33,31 @@ class Check:
 
 
 def _has_ai_crawler_rule(robots_text: str) -> bool:
-    """True when robots.txt names at least one known AI crawler."""
-    from .crawlers import CRAWLERS
+    """True when robots.txt names at least one known AI crawler in a group.
 
-    lowered = robots_text.lower()
-    return any(c.name.lower() in lowered for c in CRAWLERS)
+    This used to be a substring scan over the whole file, which reported a
+    crawler as "named" anywhere the string appeared — including in a comment,
+    in a ``Sitemap:`` URL, and in a ``Disallow:`` path. A file of
+
+        User-agent: *
+        Allow: /
+
+        Sitemap: https://example.com/sitemap-gptbot.xml
+
+    says nothing at all about GPTBot, and scored the full 20 points anyway. So
+    did a file whose only mention was ``# TODO: decide about GPTBot``. The
+    audit then told the reader their site had an explicit crawler policy when
+    it had none, which is the single fact check 2 exists to establish.
+
+    ``parse_robots`` already reads groups properly, and already strips
+    comments, so asking it is both correct and a reuse rather than a third
+    opinion on what a robots.txt means. A wildcard alone does not count: the
+    check asks whether an AI crawler was named, and ``*`` names no crawler.
+    """
+    from .crawlers import CRAWLERS, parse_robots
+
+    groups = parse_robots(robots_text).get("groups") or {}
+    return any(c.name.lower() in groups for c in CRAWLERS)
 
 
 def run_checks(root: str, pages: PageSet) -> list[Check]:

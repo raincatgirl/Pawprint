@@ -68,6 +68,61 @@ def test_robots_check_passes_with_ai_crawler(tmp_path):
     assert _check(checks, "robots.txt names AI crawlers").passed
 
 
+# A crawler name appearing anywhere in the file is not a rule about it. The
+# check used to be a substring scan over the whole text, so a robots.txt that
+# merely mentioned a crawler somewhere the parser does not read as a group —
+# in a comment, in a Sitemap: URL, in a Disallow: path — scored the full 20
+# points. The audit reported a site as having an explicit crawler policy when
+# it had none, which is the one thing check 2 exists to establish.
+
+def test_robots_check_ignores_crawler_in_sitemap_url(tmp_path):
+    _site(
+        tmp_path,
+        {"a.md": "# A\n"},
+        robots="User-agent: *\nAllow: /\n\nSitemap: https://x/sitemap-gptbot.xml\n",
+    )
+    checks = run_checks(str(tmp_path), collect(str(tmp_path)))
+    assert not _check(checks, "robots.txt names AI crawlers").passed
+
+
+def test_robots_check_ignores_crawler_in_comment(tmp_path):
+    _site(
+        tmp_path,
+        {"a.md": "# A\n"},
+        robots="User-agent: *\nAllow: /\n# TODO: decide what to do about GPTBot\n",
+    )
+    checks = run_checks(str(tmp_path), collect(str(tmp_path)))
+    assert not _check(checks, "robots.txt names AI crawlers").passed
+
+
+def test_robots_check_ignores_crawler_in_disallow_path(tmp_path):
+    _site(
+        tmp_path,
+        {"a.md": "# A\n"},
+        robots="User-agent: *\nDisallow: /ccbot-archive\n",
+    )
+    checks = run_checks(str(tmp_path), collect(str(tmp_path)))
+    assert not _check(checks, "robots.txt names AI crawlers").passed
+
+
+def test_robots_check_passes_for_named_group_beside_a_wildcard(tmp_path):
+    # The positive direction still has to work alongside the fix, including
+    # when a placeholder wildcard is followed by a real group.
+    _site(
+        tmp_path,
+        {"a.md": "# A\n"},
+        robots="User-agent: *\nAllow: /\n\nUser-agent: GPTBot\nDisallow: /\n",
+    )
+    checks = run_checks(str(tmp_path), collect(str(tmp_path)))
+    assert _check(checks, "robots.txt names AI crawlers").passed
+
+
+def test_robots_check_is_case_insensitive(tmp_path):
+    _site(tmp_path, {"a.md": "# A\n"}, robots="user-agent: gptbot\ndisallow: /\n")
+    checks = run_checks(str(tmp_path), collect(str(tmp_path)))
+    assert _check(checks, "robots.txt names AI crawlers").passed
+
+
 def test_sitemap_txt_also_counts(tmp_path):
     _site(tmp_path, {"a.md": "# A\n"}, extra={"sitemap.txt": "https://x/s.txt"})
     checks = run_checks(str(tmp_path), collect(str(tmp_path)))

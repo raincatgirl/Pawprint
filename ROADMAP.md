@@ -50,6 +50,13 @@ readable to an AI engine, or more honest about who is reading it.**
 
 ## Tick log
 
+- **2026-10-21** — Bug fix, no new flags. Audit check 2 decided whether
+  robots.txt named an AI crawler by scanning the whole file for the crawler's
+  name as a substring, so a mention in a comment, in a `Sitemap:` URL, or in a
+  `Disallow:` path scored the full 20 points. A site that said nothing about
+  any crawler was reported as having an explicit crawler policy. The check now
+  asks `parse_robots`, which already reads groups and strips comments. Suite:
+  182 passing, up from 177.
 - **2026-10-20** — The 2026-10-19 tick's parser change was never committed; it
   landed the nine tests and left them red, so `main` failed for a day. Fixed
   here rather than shipped over. A blank line now ends a robots.txt group
