@@ -1,5 +1,86 @@
 # Devlog
 
+## 2026-10-22 — the depth check counted letters and called them words
+
+### What changed
+
+The content-depth check summed `len(_WORD_RE.findall(text))` over every page.
+`_WORD_RE` was `[A-Za-z一-鿿]` — a single-character class — and `findall` on a
+single-character class returns one match per character, not per word. So:
+
+```python
+>>> len(_WORD_RE.findall("The quick brown fox jumps over the lazy dog"))
+36
+```
+
+That sentence is nine words. It reported thirty-six.
+
+The class had a real job. Counting *runs* of word characters is the ordinary way
+to count words, and it reads a Chinese or Japanese page as one enormous word,
+because that script puts no space between words. The character class was almost
+certainly added to fix exactly that, and it fixed it by breaking everything
+else.
+
+The fix is a named function, `count_words`, doing both in one pass:
+
+- a run of word characters is one word, so Latin prose counts as prose;
+- a hyphen or apostrophe between two word characters joins them, so
+  `well-known` and `It's` are one word each, matching what a word processor
+  reports;
+- an ideograph is one word on its own, so a CJK page is still counted.
+
+### Why it matters
+
+Check 4 is 20 points of the 100, and its whole job is the sentence "this site
+is too thin to be cited". A page of 74 real words reported itself as 301 and
+passed the bar outright. Before the fix, on a real two-page site:
+
+```
+  [FAIL] content depth       55 words — too thin to be cited
+```
+
+and with 75 words of prose instead of 50:
+
+```
+  [PASS] content depth       306 words
+```
+
+The bar was being crossed at a quarter of its stated value. Any site between 74
+and 300 real words was told it had enough content to be worth citing when it did
+not — the direction where the audit flatters a site that is not ready.
+
+The number is also printed. `306 words` is a figure the author will put into a
+word processor, and it was wrong by a factor of four. The audit is the product
+here, and it was stating a measurement it had not made.
+
+Checked against `wc` on the same prose, the new count matches exactly: 41 words
+both ways, with the 42nd whitespace-separated token being a bare em dash, which
+is not a word by any definition. The remaining two in the CLI output are the
+page's `# Acme Docs` heading, which is part of the page's text and should count.
+
+### Tests
+
+Fifteen in `tests/test_word_count.py`. The unit cases pin the arithmetic in
+plain numbers so a failure says which one is off — a four-letter word is one
+word; punctuation and whitespace runs create none; identifiers like
+`load_user_profile` are not split; an ideograph is one word; full-width
+punctuation is not.
+
+The rest drive the check itself, because the unit is not the bug. The
+threshold test is the one that earns its keep: 299 words of body must fail and
+300 must pass, which is the assertion that fails against the old code at every
+size.
+
+Four of the expected values were wrong when first written and were corrected
+against the implementation, not the other way round: each ideograph counts
+separately (`你好，世界。` is 4, not 2), a nine-word sentence with two commas is
+8 rather than 7 under the joiner rule, the fixture's `# A` heading contributes
+a word, and 1000 words is above the pass bar but below the 3000 that earns the
+word "substantial". Worth recording because it is the same trap the bug was —
+a number in a test that nobody counted by hand.
+
+Suite: 182 -> 197.
+
 ## 2026-10-21 — check 2 was reading the file, not the groups
 
 ### What changed

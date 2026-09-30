@@ -50,6 +50,15 @@ readable to an AI engine, or more honest about who is reading it.**
 
 ## Tick log
 
+- **2026-10-22** — Bug fix, no new flags. The content-depth check counted
+  characters, not words: `_WORD_RE` was a single-character class applied with
+  `findall`, so ordinary English prose reported at roughly four times its real
+  length and the 300-word "thick enough to cite" bar was crossed at about 74
+  real words. A thin page scored the full 20 points, and the report printed a
+  number the author could check in a word processor and find wrong by four
+  times. `count_words` now counts a run of word characters as one word and an
+  ideograph as one word, so CJK is still counted rather than read as one
+  enormous word. Suite: 197 passing, up from 182.
 - **2026-10-21** — Bug fix, no new flags. Audit check 2 decided whether
   robots.txt named an AI crawler by scanning the whole file for the crawler's
   name as a substring, so a mention in a comment, in a `Sitemap:` URL, or in a

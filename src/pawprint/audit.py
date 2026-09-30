@@ -19,7 +19,51 @@ CANDIDATE_FILES = ("llms.txt", "llms-full.txt", "robots.txt", "sitemap.xml")
 _LINK_RE = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
 _H1_RE = re.compile(r"^#\s+(.+?)\s*$", re.MULTILINE)
 _BLOCKQUOTE_RE = re.compile(r"^>\s+.+", re.MULTILINE)
-_WORD_RE = re.compile(r"[A-Za-z一-鿿]")
+
+# CJK ideographs, which are words in their own right: Chinese and Japanese put
+# no space between them, so they cannot be counted as runs the way Latin text
+# is. The ranges are the Unified Ideographs blocks plus the compatibility
+# ideographs, so rarer characters in those planes are not missed.
+_CJK = "\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\U00020000-\U0002ffff"
+
+# One character of a run-based word: a word character that is neither an
+# ideograph nor a joiner. `[^\W...]` is "a word character, except these", since
+# `\W` is the negation of `\w` and the class subtracts from it. The joiners are
+# excluded here so they can only ever appear *between* two word characters,
+# which is what keeps a standalone dash in "a - b" from being a word.
+_WORD_CHAR = r"[^\W" + _CJK + r"-'\u2019]"
+
+# A run of word characters, optionally joined by a hyphen or an apostrophe, so
+# `well-known`, `self-contained` and `It's` are one word each — which is what a
+# word processor reports, and what the threshold in the report is compared
+# against. The lookahead demands at least one real word character, so a lone
+# `-` or `'`, or a trailing hyphen, starts nothing.
+_WORD_RE = re.compile(
+    r"(?=" + _WORD_CHAR + r")"
+    + _WORD_CHAR
+    + r"+(?:[-\u2019']" + _WORD_CHAR + r"+)*"
+    + r"|[" + _CJK + r"]"
+)
+
+
+def count_words(text: str) -> int:
+    """Count the words in ``text``.
+
+    This used to be a single-character class applied with ``findall``, which
+    returns one match per *character* rather than per word. Ordinary English
+    prose therefore came out at roughly four times its real length, and a page
+    of 74 words reported itself as 301 — comfortably past the "thick enough to
+    be worth citing" bar, which is what check 4 exists to enforce. The number
+    appears in the report, so it was a number the author could put into a word
+    processor and find wrong by a factor of four.
+
+    The character class was not gratuitous: counting runs of Latin characters
+    reads most of a Chinese or Japanese page as one enormous word, which is the
+    opposite failure. So both are counted in one pass — a run of word
+    characters is one word, and an ideograph is one word.
+    """
+    return len(_WORD_RE.findall(text))
+
 
 
 @dataclass(frozen=True)
@@ -108,7 +152,7 @@ def run_checks(root: str, pages: PageSet) -> list[Check]:
     )
 
     # 4. Content depth: is there enough text to be worth citing?
-    words = sum(len(_WORD_RE.findall(plain_text(page.body))) for page in pages)
+    words = sum(count_words(plain_text(page.body)) for page in pages)
     if words == 0:
         checks.append(Check("content depth", False, "no indexable text found"))
     elif words < 300:
