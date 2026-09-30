@@ -161,18 +161,71 @@ def _parse_meta_block(lines: list[str]) -> dict[str, object]:
     return meta
 
 
-def _first_h1(body: str) -> str | None:
-    """First ATX H1 outside any fenced code block.
+def _is_setext_underline(line: str) -> bool:
+    """True for a line that underlines a preceding paragraph as a heading.
 
-    A shell transcript is full of ``# comment`` lines. Read naively, a page
-    whose only heading is inside a bash block gets that comment as its title,
-    and every generated entry calls the page "Install the package". CommonMark
-    opens a fenced block with three or more backticks or tildes and closes it
-    with a line of at least as many of the same character, so the fence is
-    tracked by scanning the body rather than by trusting a single regex.
+    CommonMark allows a run of ``=`` or ``-``, any length, with up to three
+    spaces of indentation and any trailing whitespace. Four spaces of indent
+    would make it an indented code block instead, and a run with an internal
+    space (``= =``) underlines nothing.
     """
+    body = line.strip(" \t")
+    if not body or len(line) - len(line.lstrip(" \t")) > 3:
+        return False
+    return set(body) <= {"="} or set(body) <= {"-"}
+
+
+def _heading_block(lines: list[str], start: int) -> list[str] | None:
+    """The setext heading's content lines at ``lines[start]``, if there is one.
+
+    A setext heading is a paragraph plus an underline, and the paragraph can
+    span more than one line. The lines have to be ones that would be a
+    paragraph on their own, so anything that is already a block start (an ATX
+    heading, a fence, a list bullet, a block quote, an indented code block)
+    rules the underline out, as does a blank line.
+    """
+    content: list[str] = []
+    index = start
+    while index < len(lines):
+        line = lines[index]
+        if not line.strip():
+            break
+        # An underline ends the heading it underlines, so it is never part of
+        # the heading's own content.
+        if index > start and _is_setext_underline(line):
+            break
+        if index > start and (
+            _is_indented_code(line) or line.lstrip().startswith(_BLOCK_PREFIXES)
+        ):
+            break
+        content.append(line)
+        index += 1
+    if not content:
+        return None
+    first = content[0]
+    if _is_indented_code(first) or first.lstrip().startswith(_BLOCK_PREFIXES):
+        return None
+    if index >= len(lines) or not _is_setext_underline(lines[index]):
+        return None
+    return content
+
+
+def _first_heading(body: str) -> str | None:
+    """The document's first heading, ATX or setext, outside any fenced code.
+
+    Setext headings are the other legal way to write an H1 in CommonMark
+    (``Title`` underlined with ``===``), and they are common in hand-written
+    files. Reading only ATX meant a page written that way fell back to its
+    filename for a title, and its index summary came out as the literal
+    underline: ``Getting Started ===============``.
+
+    The fence tracking is shared with the ATX case, since a shell transcript
+    is full of ``# comment`` lines and can just as easily contain a
+    ``Fake Title`` over a ``=======`` run.
+    """
+    lines = body.split("\n")
     fence: str | None = None
-    for line in body.split("\n"):
+    for index, line in enumerate(lines):
         stripped = line.strip()
         if fence is not None:
             # A closing fence is the same character repeated, nothing else.
@@ -188,7 +241,23 @@ def _first_h1(body: str) -> str | None:
         match = _H1_RE.match(line)
         if match:
             return match.group(1).strip()
+        content = _heading_block(lines, index)
+        if content is not None:
+            return _join_heading(content)
     return None
+
+
+def _join_heading(content: list[str]) -> str:
+    """Flatten a heading's lines into one line of text.
+
+    A heading may span lines, and CommonMark parses the joined text as
+    inlines, so emphasis opened on one line and closed on the next is
+    emphasis. Reading only the last line gave ``Foo *bar\\nbaz*`` the title
+    ``baz*``. The lines are joined with a space, which is what a soft line
+    break becomes, and the emphasis is then stripped by the same rules the
+    rest of the module uses.
+    """
+    return _strip_emphasis(" ".join(line.strip() for line in content)).strip()
 
 
 def parse_page(path: str, rel_path: str, text: str) -> Page:
@@ -197,7 +266,7 @@ def parse_page(path: str, rel_path: str, text: str) -> Page:
 
     title = meta.get("title")
     if not isinstance(title, str) or not title:
-        h1 = _first_h1(body)
+        h1 = _first_heading(body)
         title = h1 if h1 else rel_path.rsplit("/", 1)[-1].rsplit(".", 1)[0].replace("-", " ").replace("_", " ")
 
     description = meta.get("description")
@@ -363,6 +432,12 @@ def summarise(page: Page, limit: int = 200) -> str:
 _SKIP_PREFIXES = ("#", "-", "*", "+", ">", "|", "```", "\t")
 _INDENT_RE = re.compile(r"^ {4,}")
 
+# Line starts that open a block other than a paragraph. A setext underline can
+# only follow a paragraph, so a line starting with one of these is not heading
+# content however it is underlined. Shared by the heading reader and the
+# summary reader so both agree on what counts as structure.
+_BLOCK_PREFIXES = ("#", ">", "|", "```", "- ", "* ", "+ ")
+
 
 def _is_indented_code(line: str) -> bool:
     """True for a line that CommonMark reads as an indented code block.
@@ -378,12 +453,23 @@ def _first_prose_paragraph(body: str) -> str:
     """First block that reads like a sentence rather than structure.
 
     Works on the raw markdown, not the stripped text, so a one-line paragraph
-    is still recognised as prose while a heading is not.
+    is still recognised as prose while a heading is not. A setext heading is
+    a heading too, so its content line and underline are dropped the same way
+    an ATX heading is — otherwise the summary of a setext page is its own
+    title, underlined.
     """
     for block in body.split("\n\n"):
         lines = [line for line in block.split("\n") if line.strip()]
         if not lines:
             continue
+        heading = _heading_block(lines, 0)
+        if heading is not None:
+            # A paragraph opened by a setext heading: keep the lines that
+            # follow the underline, which are the prose under the heading.
+            rest = lines[len(heading) + 1 :]
+            if not rest:
+                continue
+            return " ".join(line.strip() for line in rest)
         if _is_indented_code(lines[0]) or lines[0].lstrip().startswith(_SKIP_PREFIXES):
             continue
         return " ".join(line.strip() for line in lines)

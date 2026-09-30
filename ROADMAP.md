@@ -50,6 +50,10 @@ readable to an AI engine, or more honest about who is reading it.**
 
 ## Tick log
 
+- **2026-10-16** — Bug fix, no new flags. CommonMark has two ways to write an
+  H1 and only the ATX `# ` one was read. A page written as `Getting Started`
+  over a `===============` underline was titled after its filename, and its
+  index summary was the literal underline. Found by reading `_first_h1`.
 - **2026-10-15** — Bug fix, no new flags. The fallback H1 was found with a
   bare regex, which read straight through fenced code blocks, so a page whose
   first heading was a shell comment was titled after the comment and linked

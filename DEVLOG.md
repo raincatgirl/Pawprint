@@ -1,5 +1,79 @@
 # Devlog
 
+## 2026-10-16 — a setext heading was not a heading
+
+### What changed
+
+`parse_page` found a page's fallback title by scanning for an ATX `# ` line.
+CommonMark has two equally legal ways to write an H1, and Pawprint only knew
+about one. A page written the other way:
+
+```
+Getting Started
+===============
+
+Install it with pip.
+```
+
+came out as a page titled `install` — the filename — and its index summary
+came out as `Getting Started ===============`, the heading text and its
+underline glued together. The generated `llms.txt` entry read:
+
+```
+- [install](/install): Getting Started ===============
+```
+
+`_first_h1` is now `_first_heading`, and it reads both forms. The setext
+rules it implements, from the CommonMark 0.31.2 spec section 4.3:
+
+- The underline is a run of `=` (level 1) or `-` (level 2), and it can be any
+  length. One character is enough. `Not a rule\n------------------` is a
+  heading, not a heading followed by a thematic break, because a setext
+  underline takes precedence when a paragraph is open.
+- Up to three spaces of indentation on either the content line or the
+  underline. Four spaces makes it an indented code block instead.
+- Any trailing whitespace, but no internal whitespace: `= =` underlines
+  nothing.
+- The content line has to be one that would otherwise be a paragraph, so a
+  line opening with `#`, `>`, `|`, a fence, or a list bullet is not heading
+  content however it is underlined.
+- A setext heading cannot interrupt a paragraph, and a line that is already a
+  block start cannot be underlined, so `# Title\n---` leaves the title alone.
+
+The same scan keeps tracking code fences, so a `Fake Title` over a `=======`
+run inside a bash block is ignored exactly as a `# comment` line already was.
+
+`_first_prose_paragraph` skips a setext heading too. It already skipped ATX
+headings as structure, so leaving the other form in meant a setext page
+summarised as its own title, repeated. The two readers now share a
+`_BLOCK_PREFIXES` constant so they cannot disagree about what counts as
+structure.
+
+### Why
+
+An AI engine is handed `llms.txt` and told to use the link text as the name
+of a page. `install` and `Getting Started ===============` are both wrong
+answers, and unlike a stale word count they are the one line a reader is most
+likely to quote back.
+
+### Tests
+
+Eighteen, in `tests/test_setext.py`. Three of them asserted the wrong thing
+on the first pass and were corrected against the spec before the
+implementation was finished:
+
+- A dash run of four or more was assumed to be a thematic break. Spec example
+  83 says the underlining can be any length, so it is a heading.
+- A multi-line heading was expected to strip emphasis across the join. Spec
+  example 81 renders `Foo *bar\nbaz*` as `Foo <em>bar baz</em>`, so the
+  emphasis spans both words and the title is "Foo bar baz", not "Foo bar".
+
+The multi-line case was worth catching: the first implementation took the
+last line of the heading, which made `Foo *bar\nbaz*` the page titled `baz*`
+— a worse answer than the bug it replaced, since a wrong title is quoted back
+into a citation.
+
+
 ## 2026-10-15 — a shell comment inside a code fence was naming the page
 
 ### What changed
@@ -487,3 +561,7 @@ satisfy it, that test fails and the scoring stays honest.
 - `site_name` did not follow the same priority rule as `lead_page`; a site
   with a root-level page sorting before `index.md` was named after that page.
   Fixed 2026-10-08.
+- Setext headings are read for titles, including multi-line ones, but a
+  heading whose content is split across lines is joined with a space rather
+  than with a soft line break. That is the same string in the title; it differs
+  only in `llms-full.txt`, which keeps the original body untouched.
