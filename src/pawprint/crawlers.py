@@ -77,11 +77,25 @@ def parse_robots(text: str) -> dict[str, object]:
     for raw in text.split("\n"):
         line = raw.split("#", 1)[0].strip()
         if not line:
-            # Blank line after rules closes the group. A blank line between
-            # User-agent lines of the same group is not a boundary, so a
-            # group still collecting agents stays open.
-            if sealed:
-                current = []
+            # A blank line ends the group, whether or not it stated a rule.
+            #
+            # RFC 9309's grammar is `group = startgrouplines
+            # *(startgroupline) *(ruleline / emptyline)`, so a group is closed
+            # by an empty line and the next `User-agent` line opens a fresh
+            # one. Guarding this on `sealed` — exempting a group that had not
+            # yet stated a rule — was there to keep the multi-agent group form
+            # working, but that form does not use blank lines at all, so it
+            # never needed the exemption.
+            #
+            # The cost was a placeholder wildcard swallowing the group after
+            # it, so `User-agent: *` / blank / `User-agent: GPTBot` /
+            # `Disallow: /` — the shape people write while still deciding
+            # which crawler to block — parsed as one group of two members, and
+            # the Disallow landed on the wildcard too. Every crawler in the
+            # table then fell through to that wildcard and read as blocked,
+            # and the report advised relaxing a `Disallow` that was not in the
+            # file. A site wide open to citation crawlers read as shut.
+            current = []
             continue
         sitemap = _SITEMAP_RE.match(line)
         if sitemap:

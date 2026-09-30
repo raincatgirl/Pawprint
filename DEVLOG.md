@@ -1,5 +1,73 @@
 # Devlog
 
+## 2026-10-20 — the 2026-10-19 tests, made to pass
+
+### What changed
+
+Yesterday's tick added the nine tests in `tests/test_robots_group_closure.py`
+and did not land the parser change. `main` was left with six of them failing.
+Today's unit of work was to make them pass, not to add anything new.
+
+The change is one condition. `parse_robots` closed a group at a blank line
+only if a rule had already been seen:
+
+```python
+if not line:
+    if sealed:
+        current = []
+    continue
+```
+
+The `sealed` guard was there to keep the multi-agent group form working — the
+concern that a blank line between two `User-agent` lines would split a group
+that was still collecting members. But that form is written without blank
+lines, so it never needed the exemption.
+
+Dropping it means a blank line closes any group. This file:
+
+```
+User-agent: *
+
+User-agent: GPTBot
+Disallow: /
+```
+
+used to parse as one group of two members:
+
+```
+{'*': [(False, '/')], 'gptbot': [(False, '/')]}
+```
+
+and now parses as a wildcard that states no rule and a named group that
+blocks one crawler. `pawprint policy` on it reads:
+
+```
+  GPTBot              blocked   You probably want this one reading you.
+  ClaudeBot           allowed   Anthropic crawler
+```
+
+and recommends adding an explicit group for GPTBot, which is accurate. Before,
+it reported all fourteen crawlers blocked and advised relaxing a wildcard
+`Disallow` that is not in the file — a confident false claim about who can
+read a site, in the direction that hides an open door.
+
+The grammar behind it is RFC 9309's `group = startgrouplines
+*(startgroupline) *(ruleline / emptyline)`: a group is closed by an empty
+line, and the next `User-agent` line opens a fresh one.
+
+### Why it mattered to fix rather than revert
+
+Reverting would have restored green but thrown away the bug report. The tests
+describe a real shape people write — start a placeholder wildcard, then get
+round to the crawler you meant to block — and it was misreported. The fix is
+two lines smaller than the guard it removes.
+
+### Tests
+
+Nine tests, six failing before the change, 177 passing after. The three that
+passed before were the ones asserting the multi-agent and both-rules groups
+still parse, which is the behaviour the guard was protecting.
+
 ## 2026-10-19 — the same empty-group rule, missed for the wildcard
 
 ### What changed

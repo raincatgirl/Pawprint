@@ -50,6 +50,11 @@ readable to an AI engine, or more honest about who is reading it.**
 
 ## Tick log
 
+- **2026-10-20** — The 2026-10-19 tick's parser change was never committed; it
+  landed the nine tests and left them red, so `main` failed for a day. Fixed
+  here rather than shipped over. A blank line now ends a robots.txt group
+  whether or not the group stated a rule, per RFC 9309's
+  `*(ruleline / emptyline)`. Suite: 177 passing, up from 168.
 - **2026-10-19** — Bug fix, no new flags. The empty-group rule from the
   previous tick was written into the named-agent branch and so never applied
   to the wildcard. A robots.txt that says only `User-agent: *` was reported
