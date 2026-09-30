@@ -50,6 +50,11 @@ readable to an AI engine, or more honest about who is reading it.**
 
 ## Tick log
 
+- **2026-10-17** — Bug fix, no new flags. An ATX heading may be closed by its
+  own run of hashes, and that closing sequence was being read as part of the
+  title, so `# Setup ##` produced a page titled `Setup ##` and an index line
+  quoting markup as content. A title that is seven hashes long was also read as
+  a heading, which is a paragraph. Found by reading `_H1_RE`.
 - **2026-10-16** — Bug fix, no new flags. CommonMark has two ways to write an
   H1 and only the ATX `# ` one was read. A page written as `Getting Started`
   over a `===============` underline was titled after its filename, and its

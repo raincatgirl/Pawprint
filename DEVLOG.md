@@ -1,5 +1,49 @@
 # Devlog
 
+## 2026-10-17 — a heading's closing hashes were part of its title
+
+### What changed
+
+CommonMark lets an author close an ATX heading with its own run of hashes:
+
+```
+## Setup ##
+```
+
+The trailing run is a closing sequence, not text. Pawprint kept it, so that
+page's title was `Setup ##`, that is what the H1 of the generated `llms.txt`
+said, and that is what the page's own index line read:
+
+```
+- [Setup ##](/guide): Run the installer, then restart the daemon.
+```
+
+The plain text the audit word-counts had the same decoration, so a heading
+that was one word counted as three.
+
+### Why it matters
+
+A title is a claim about the page. Quoting a reader the `#` characters the
+author used to draw the heading is quoting markup as content, and the
+`llms.txt` is the file that exists to be read by something that never sees the
+Markdown.
+
+### How it is fixed
+
+`is_atx_heading` now decides what is a heading once — one to six hashes, up to
+three spaces of indent, then whitespace or end of line — and the closing
+sequence is stripped only when whitespace precedes it, which is what
+CommonMark requires. That distinction is the whole fix: `# C#` and
+`# Hashtag #1` are headings whose text ends in a hash, and the hash belongs to
+the text. A line that merely ends in hashes without being a heading
+(`press Ctrl+##`) keeps them, since only a heading can be closed this way.
+
+Seven hashes is not a heading — it is a paragraph — and that case now falls
+back to the filename instead of being titled after a run of hashes.
+
+Ten new tests in `tests/test_atx_closing.py`, covering the title, the summary,
+and the plain-text path.
+
 ## 2026-10-16 — a setext heading was not a heading
 
 ### What changed

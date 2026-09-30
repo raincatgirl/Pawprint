@@ -44,7 +44,27 @@ _TITLE_RE = re.compile(r"^title\s*:\s*(.+?)\s*$")
 _DESC_RE = re.compile(r"^description\s*:\s*(.+?)\s*$")
 _ORDER_RE = re.compile(r"^order\s*:\s*(\d+)\s*$")
 _DRAFT_RE = re.compile(r"^draft\s*:\s*(true|false)\s*$", re.IGNORECASE)
-_H1_RE = re.compile(r"^#\s+(.+?)\s*$", re.MULTILINE)
+_H1_RE = re.compile(r"^#{1,6}\s+(.+?)\s*$", re.MULTILINE)
+
+# An ATX heading may be closed by its own run of hashes (``# Title #``), which
+# is decoration and not part of the text. The run only closes the heading when
+# whitespace comes before it, so ``# C#`` and ``# Hashtag #1`` keep their
+# hashes, and it only counts when it is hashes at all, so a trailing ``~~~``
+# is content.
+_ATX_OPEN_RE = re.compile(r"^ {0,3}#{1,6}(\s|$)")
+_ATX_CLOSE_RE = re.compile(r"[ \t]+#+$")
+
+
+def is_atx_heading(line: str) -> bool:
+    """True for a line CommonMark reads as an ATX heading.
+
+    One to six hashes, up to three spaces of indent, then whitespace or the end
+    of the line. Seven hashes is a paragraph, and an unindented line that starts
+    with a fence is a fence, not a heading.
+    """
+    if line.startswith("\t") or len(line) - len(line.lstrip(" ")) > 3:
+        return False
+    return bool(_ATX_OPEN_RE.match(line))
 
 # Any `index` with a content suffix is a landing page, not a page called
 # "index". Hardcoding `.md` here meant `index.markdown` — which the walker
@@ -210,6 +230,11 @@ def _heading_block(lines: list[str], start: int) -> list[str] | None:
     return content
 
 
+def _atx_text(raw: str) -> str:
+    """The text of an ATX heading, without its opening or closing hashes."""
+    return _ATX_CLOSE_RE.sub("", raw).strip()
+
+
 def _first_heading(body: str) -> str | None:
     """The document's first heading, ATX or setext, outside any fenced code.
 
@@ -239,8 +264,8 @@ def _first_heading(body: str) -> str | None:
             fence = run
             continue
         match = _H1_RE.match(line)
-        if match:
-            return match.group(1).strip()
+        if match and is_atx_heading(line):
+            return _atx_text(match.group(1))
         content = _heading_block(lines, index)
         if content is not None:
             return _join_heading(content)
@@ -396,10 +421,16 @@ def plain_text(markdown: str) -> str:
     emphasis markers, code ticks, heading hashes, and image syntax.
     """
     out: list[str] = []
-    for line in markdown.split("\n"):
+    for raw in markdown.split("\n"):
+        line = raw
         line = re.sub(r"!\[([^\]]*)\]\([^)]*\)", r"\1", line)
         line = re.sub(r"\[([^\]]*)\]\(([^)]*)\)", r"\1 (\2)", line)
-        line = re.sub(r"^#{1,6}\s*", "", line)
+        line = re.sub(r"^#{1,6}(\s|$)", "", line)
+        if is_atx_heading(raw):
+            # A closing sequence is decoration, so it goes the same way as the
+            # opening one. Only a heading can be closed this way, so a line that
+            # merely ends in a hash — ``press Ctrl+##`` — keeps it.
+            line = _ATX_CLOSE_RE.sub("", line)
         line = re.sub(r"^>\s?", "", line)
         line = _strip_emphasis(line)
         line = re.sub(r"^\s*[-*+]\s+", "- ", line)
